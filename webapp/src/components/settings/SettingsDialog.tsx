@@ -696,7 +696,7 @@ const AboutApp = () => {
     <div className={styles.about}>
       <div className={styles.aboutName}>deeplook</div>
       <div className={styles.aboutVersion}>
-        {t('settingsVersion')} 1.4.3
+        {t('settingsVersion')} 1.4.4
       </div>
       <p className={styles.subpageHint}>{t('aboutDescription')}</p>
       <div className={styles.aboutCard}>
@@ -1165,6 +1165,7 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
     />
   )
 }
+
 
 
 

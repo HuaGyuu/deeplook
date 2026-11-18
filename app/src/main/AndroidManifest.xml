@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- 语音输入：录音后上传转写 -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- WebView/Chromium 录音需要同时具备音频设置权限，否则会提示 No audio device will be available for recording -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 

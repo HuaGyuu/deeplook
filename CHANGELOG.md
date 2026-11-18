@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.4
+
+- 修复语音输入仍失败：AndroidManifest 补充 MODIFY_AUDIO_SETTINGS 权限。Chromium WebView 录音同时要求 RECORD_AUDIO 与 MODIFY_AUDIO_SETTINGS，否则会报 No audio device will be available for recording。
+
 ## 1.4.3
 
 - 修复聊天背景预览与真实背景不一致：实际背景层补上 `background-position: center`，裁剪框和预览跟随设备视口比例。
@@ -47,5 +51,6 @@
 
 - 首个版本：基于 DeepSeek chat-demo 的 WebView 套壳安卓应用。
 - 补齐文件选择、ZIP 导出下载、麦克风权限、返回键、外链跳转、深浅色。
+
 
 
