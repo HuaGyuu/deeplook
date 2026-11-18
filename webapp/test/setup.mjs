@@ -5,7 +5,7 @@ import path from 'node:path';
 import { registerHooks } from 'node:module';
 import { pathToFileURL } from 'node:url';
 
-const SRC = path.resolve('D:/Workspace/deepseek-harness/.scratch/build-env/src');
+const SRC = path.resolve('D:/develop/github-project/deeplook/.scratch/build-env/src');
 
 /** 把 `./x.js` 形式的导入解析到实际存在的 `.ts` / `.tsx` */
 registerHooks({
@@ -57,3 +57,4 @@ globalThis.matchMedia = globalThis.matchMedia || (() => ({
 
 export { SRC, storage };
 export const importSource = (relative) => import(pathToFileURL(path.join(SRC, relative)).href);
+

@@ -17,3 +17,7 @@ webapp/.rspack/
 *.apk
 *.zip
 .DS_Store
+
+# 本地构建环境（SDK/缓存/临时脚本），不提交
+.scratch/
+
