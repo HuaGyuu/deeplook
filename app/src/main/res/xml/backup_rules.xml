@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- WebView 的 localStorage / IndexedDB 保存着 API Key 与全部对话，必须备份 -->
+    <include domain="database" path="." />
+    <include domain="sharedpref" path="." />
+    <include domain="file" path="app_webview" />
+</full-backup-content>

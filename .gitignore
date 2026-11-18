@@ -1,0 +1,19 @@
+# Gradle / Android
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+
+# 网页层
+webapp/node_modules/
+webapp/dist/
+*.log
+.DS_Store
+
+# 构建产物与本地文件
+dist/
+webapp/.rspack/
+*.apk
+*.zip
+.DS_Store

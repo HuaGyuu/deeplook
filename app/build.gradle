@@ -1,0 +1,70 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.deepseek.chatdemo'
+    compileSdk 36
+    // 固定使用本机已安装的构建工具，避免 AGP 自动下载（离线/代理环境会失败）
+    buildToolsVersion '36.0.0'
+
+    defaultConfig {
+        applicationId 'com.deepseek.chatdemo'
+        // Android 8.0：WebViewAssetLoader、现代 WebView 与深色模式等能力都可用
+        minSdk 26
+        targetSdk 36
+        versionCode 6
+        versionName '1.4.1'
+        // 只打包中文与英文资源
+        resourceConfigurations += ['zh', 'en']
+    }
+
+    // 项目内自带的 debug 签名，避免依赖 ~/.android/debug.keystore（只读环境或 CI 里也能构建）
+    signingConfigs {
+        debug {
+            storeFile file('../keystore/debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            minifyEnabled false
+            shrinkResources false
+            // 便于自行安装体验：release 使用 debug 签名；正式发布请替换为自己的签名
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    packaging {
+        resources {
+            excludes += ['META-INF/*']
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.7.1'
+    implementation 'androidx.webkit:webkit:1.14.0'
+    implementation 'androidx.activity:activity:1.11.0'
+    implementation 'androidx.core:core:1.17.0'
+}
+
+
+
+
+
