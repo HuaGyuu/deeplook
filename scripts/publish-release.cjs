@@ -1,11 +1,13 @@
 // 用 GitHub REST API 配置仓库信息并发布 release（token 从环境变量 GH_TOKEN 读取，不打印）
+// 用法：GH_TOKEN=... node scripts/publish-release.cjs dist/deeplook-1.4.2.apk v1.4.2
 const fs = require('node:fs');
 const crypto = require('node:crypto');
 
 const OWNER = 'HuaGyuu';
 const REPO = 'deeplook';
-const TAG = 'v1.4.1';
 const APK = process.argv[2];
+const TAG = process.argv[3] || process.env.RELEASE_TAG || 'v1.4.2';
+const VERSION = TAG.replace(/^v/, '');
 const TOKEN = process.env.GH_TOKEN;
 
 if (!TOKEN) {
@@ -31,6 +33,29 @@ const api = async (path, options = {}) => {
   try { json = text ? JSON.parse(text) : null; } catch {}
   return { status: res.status, json, text };
 };
+
+const releaseNotes = (sha256, sizeMb) => [
+  `## deeplook ${TAG}`,
+  '',
+  '基于 DeepSeek 官方 API 的安卓聊天客户端（WebView + React/TypeScript）。',
+  '',
+  '### 本次更新',
+  '- 关于页新增作者 HuaGyuu、GitHub 仓库、问题反馈、MIT 协议与技术栈信息',
+  '- 修复设置二级页面按系统返回键直接退出设置：现在先回到设置首页，再按一次退出',
+  '- 修复语音输入：录音前先向原生申请麦克风权限，避免权限弹窗打断 WebView 录音',
+  '',
+  '### 安装',
+  `下载下方 \`deeplook-${VERSION}.apk\` 安装（需允许未知来源），首次打开到 **设置 → 数据管理** 填入 DeepSeek API Key。`,
+  '',
+  '### 说明',
+  `- 版本：${VERSION}（versionCode 7）`,
+  '- 包名：`com.deepseek.chatdemo`',
+  `- 大小：${sizeMb} MB`,
+  `- SHA-256：\`${sha256}\``,
+  '- Release APK 使用 debug 签名，便于直接安装体验；上架请自行替换正式签名。',
+  '',
+  '完整更新记录见 [CHANGELOG.md](https://github.com/HuaGyuu/deeplook/blob/main/CHANGELOG.md)。',
+].join('\n');
 
 (async () => {
   const apk = fs.readFileSync(APK);
@@ -58,29 +83,7 @@ const api = async (path, options = {}) => {
   });
   console.log('topics:', topics.status, JSON.stringify(topics.json?.names));
 
-  const body = [
-    '## deeplook v1.4.1',
-    '',
-    '基于 DeepSeek 官方 API 的安卓聊天客户端（WebView + React/TypeScript）。',
-    '',
-    '### 本次更新',
-    '- 修复任意界面双指捏合会缩放整个页面（裁剪页内部的捏合仍正常）',
-    '- 背景裁剪：手机比例取景框、框外压暗、单指拖动、双指缩放',
-    '- 个性化：手机比例预览 + 单条发白程度滑杆；修复滑杆不能拖动 / 调整不生效',
-    '- 会话置顶、人设注入、聊天背景、图片按钮、右滑打开侧边栏',
-    '',
-    '### 安装',
-    '下载下方 `deeplook-1.4.1.apk` 安装（需允许未知来源），首次打开到 **设置 → 数据管理** 填入 DeepSeek API Key。',
-    '',
-    '### 说明',
-    `- 版本：1.4.1（versionCode 6）`,
-    `- 包名：\`com.deepseek.chatdemo\``,
-    `- 大小：${sizeMb} MB`,
-    `- SHA-256：\`${sha256}\``,
-    '- Release APK 使用 debug 签名，便于直接安装体验；上架请自行替换正式签名。',
-    '',
-    '完整更新记录见 [CHANGELOG.md](https://github.com/HuaGyuu/deeplook/blob/main/CHANGELOG.md)。',
-  ].join('\n');
+  const body = releaseNotes(sha256, sizeMb);
 
   // 创建或更新 release
   let release = await api(`/repos/${OWNER}/${REPO}/releases/tags/${TAG}`);
@@ -109,9 +112,9 @@ const api = async (path, options = {}) => {
   }
   console.log('release:', release.status, release.json.html_url);
 
-  // 上传 APK 资产
+  // 上传 APK 资产（同名旧资产先删除）
   const assets = await api(`/repos/${OWNER}/${REPO}/releases/${release.json.id}/assets`);
-  const name = 'deeplook-1.4.1.apk';
+  const name = `deeplook-${VERSION}.apk`;
   const existing = assets.json?.find?.((item) => item.name === name);
   if (existing) {
     await api(`/repos/${OWNER}/${REPO}/releases/assets/${existing.id}`, { method: 'DELETE' });

@@ -13,6 +13,45 @@ export type VoiceInputStatus = 'idle' | 'recording' | 'transcribing'
  */
 const AVAILABLE = typeof window === 'undefined' || window.isSecureContext
 
+type AndroidMicBridge = { requestMicrophone?: (requestId: string) => void }
+
+/**
+ * 安卓 WebView 里先向原生申请 RECORD_AUDIO，拿到授权后再 getUserMedia。
+ * 这样不会因为系统权限弹窗打断 WebView 的 PermissionRequest 而直接录音失败。
+ */
+const requestNativeMicrophonePermission = (): Promise<boolean> => {
+  if (typeof window === 'undefined') {
+    return Promise.resolve(false)
+  }
+  const bridge = (window as Window & { DeepSeekAndroid?: AndroidMicBridge }).DeepSeekAndroid
+  if (!bridge?.requestMicrophone) {
+    // 普通浏览器由 getUserMedia 自己弹权限
+    return Promise.resolve(true)
+  }
+  return new Promise<boolean>((resolve) => {
+    const requestId = `mic_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+    const target = window as Window & {
+      __deeplookMicPermission?: (id: string, granted: boolean) => void
+    }
+    const timer = window.setTimeout(() => {
+      cleanup()
+      resolve(false)
+    }, 20000)
+    const cleanup = () => {
+      window.clearTimeout(timer)
+      delete target.__deeplookMicPermission
+    }
+    target.__deeplookMicPermission = (id, granted) => {
+      if (id !== requestId) {
+        return
+      }
+      cleanup()
+      resolve(granted)
+    }
+    bridge.requestMicrophone?.(requestId)
+  })
+}
+
 const describeRecordingError = (error: unknown): TranslationMessage => {
   if (error instanceof DOMException) {
     if (error.name === 'NotAllowedError' || error.name === 'SecurityError') {
@@ -36,6 +75,7 @@ export const useVoiceInput = (onText: (text: string) => void) => {
   const recordingRef = useRef<Recording | null>(null)
   const controllerRef = useRef<AbortController | null>(null)
   const operationRef = useRef(0)
+  const permissionPendingRef = useRef(false)
   const onTextRef = useRef(onText)
   onTextRef.current = onText
 
@@ -106,6 +146,20 @@ export const useVoiceInput = (onText: (text: string) => void) => {
     }
     if (status === 'transcribing') {
       cancel()
+      return
+    }
+    if (permissionPendingRef.current) {
+      return
+    }
+    permissionPendingRef.current = true
+    let permitted = false
+    try {
+      permitted = await requestNativeMicrophonePermission()
+    } finally {
+      permissionPendingRef.current = false
+    }
+    if (!permitted) {
+      showToast({ key: 'voiceInputPermissionDenied' })
       return
     }
     const operation = ++operationRef.current

@@ -54,6 +54,11 @@ export const zh = {
   uploadImage: '上传图片',
   settingsVersion: '版本',
   aboutDescription: 'deeplook 是一个基于 DeepSeek 官方 API 的聊天客户端。',
+  aboutAuthor: '作者',
+  aboutGithub: 'GitHub',
+  aboutFeedback: '问题反馈',
+  aboutLicense: '开源协议',
+  aboutTech: '技术栈',
   deleteSessionModalContentTitle: '永久删除对话',
   deleteSessionWithFilesDescription: '删除后，该对话及其中上传的文件将不可恢复。确认删除吗？',
   cancel: '取消',
@@ -217,6 +222,7 @@ export const zh = {
   settingsLocaleZhCN: '简体中文',
   settingsLocaleEnUS: 'English',
 } as const
+
 
 
 

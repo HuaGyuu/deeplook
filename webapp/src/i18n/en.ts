@@ -57,6 +57,11 @@ export const en = {
   uploadImage: 'Upload image',
   settingsVersion: 'Version',
   aboutDescription: 'deeplook is a chat client powered by the official DeepSeek API.',
+  aboutAuthor: 'Author',
+  aboutGithub: 'GitHub',
+  aboutFeedback: 'Feedback',
+  aboutLicense: 'License',
+  aboutTech: 'Tech stack',
   deleteSessionModalContentTitle: 'Delete chat?',
   deleteSessionWithFilesDescription:
     'This chat and its uploaded files will be permanently deleted and cannot be recovered. Delete this chat?',
@@ -225,6 +230,7 @@ export const en = {
   settingsLocaleZhCN: 'Simplified Chinese',
   settingsLocaleEnUS: 'English',
 } satisfies Record<keyof typeof zh, string>
+
 
 
 

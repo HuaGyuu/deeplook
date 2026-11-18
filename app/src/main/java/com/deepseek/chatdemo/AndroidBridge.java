@@ -22,4 +22,11 @@ final class AndroidBridge {
     public void appendDownload(String base64Chunk, boolean last) {
         activity.appendDownload(base64Chunk, last);
     }
+
+    /** 录音前先向系统申请麦克风权限，结果通过 window.__deeplookMicPermission 回调 */
+    @JavascriptInterface
+    public void requestMicrophone(String requestId) {
+        activity.requestMicrophonePermission(requestId);
+    }
 }
+

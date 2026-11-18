@@ -14,7 +14,7 @@ import { closeSearchPanel } from '../components/search/searchPanelState.js'
 import { SessionView } from '../components/session/SessionView.js'
 import { MobileHeader } from '../components/session/MobileHeader.js'
 import { Welcome } from '../components/session/Welcome.js'
-import { closeSettings, ensureApiKey, useSettingsDialog } from '../components/settings/settingsDialogState.js'
+import { closeSettings, ensureApiKey, handleSettingsBack, useSettingsDialog } from '../components/settings/settingsDialogState.js'
 import { SettingsDialog } from '../components/settings/SettingsDialog.js'
 import { Toast } from '../components/base/Toast.js'
 import { showToast } from '../components/base/toastState.js'
@@ -94,6 +94,9 @@ export const App = () => {
   useEffect(() => {
     const handler = () => {
       if (useSettingsDialog.getState().open) {
+        if (handleSettingsBack()) {
+          return true
+        }
         closeSettings()
         return true
       }
@@ -185,4 +188,5 @@ export const App = () => {
     </>
   )
 }
+
 

@@ -71,6 +71,8 @@ public class MainActivity extends AppCompatActivity {
     private WebViewAssetLoader assetLoader;
     private ValueCallback<Uri[]> fileCallback;
     private PermissionRequest pendingPermission;
+    /** 录音前由页面发起的权限申请 id，授权结果回传给页面 */
+    private String pendingMicRequestId;
     private ActivityResultLauncher<Intent> fileChooserLauncher;
     private ActivityResultLauncher<Intent> legacyDownloadLauncher;
     private ActivityResultLauncher<String> audioPermissionLauncher;
@@ -198,17 +200,50 @@ public class MainActivity extends AppCompatActivity {
 
         audioPermissionLauncher = registerForActivityResult(
                 new ActivityResultContracts.RequestPermission(), granted -> {
-                    if (pendingPermission == null) {
-                        return;
+                    String micRequestId = pendingMicRequestId;
+                    pendingMicRequestId = null;
+                    if (micRequestId != null) {
+                        notifyMicPermission(micRequestId, granted);
                     }
-                    if (granted) {
-                        pendingPermission.grant(pendingPermission.getResources());
-                    } else {
-                        pendingPermission.deny();
+                    if (pendingPermission != null) {
+                        if (granted) {
+                            pendingPermission.grant(pendingPermission.getResources());
+                        } else {
+                            pendingPermission.deny();
+                            Toast.makeText(this, R.string.permission_denied_microphone, Toast.LENGTH_LONG).show();
+                        }
+                        pendingPermission = null;
+                    } else if (!granted && micRequestId == null) {
                         Toast.makeText(this, R.string.permission_denied_microphone, Toast.LENGTH_LONG).show();
                     }
-                    pendingPermission = null;
                 });
+    }
+
+    /**
+     * 页面在调用 getUserMedia 前先请求麦克风权限：避免 WebView 的 PermissionRequest
+     * 被系统权限弹窗打断后直接失败。结果通过 window.__deeplookMicPermission 回调。
+     */
+    void requestMicrophonePermission(String requestId) {
+        mainHandler.post(() -> {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+                    == PackageManager.PERMISSION_GRANTED) {
+                notifyMicPermission(requestId, true);
+                return;
+            }
+            pendingMicRequestId = requestId;
+            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO);
+        });
+    }
+
+    private void notifyMicPermission(String requestId, boolean granted) {
+        if (webView == null || requestId == null) {
+            return;
+        }
+        String safeId = requestId.replace("\\", "\\\\").replace("'", "\\'");
+        webView.evaluateJavascript(
+                "window.__deeplookMicPermission && window.__deeplookMicPermission('"
+                        + safeId + "'," + granted + ")",
+                null);
     }
 
     private void configureWebView() {

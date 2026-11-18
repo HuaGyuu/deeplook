@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.2
+
+- 关于页新增作者 HuaGyuu、GitHub 仓库、问题反馈、MIT 协议与技术栈。
+- 修复设置二级页面按系统返回键直接退出设置的问题：现在先回到设置首页。
+- 修复语音输入：录音前先向原生申请 RECORD_AUDIO，避免 WebView 权限弹窗打断录音导致语音识别失败。
+
 ## 1.4.1
 
 - 修复：任意界面双指捏合会缩放整个 WebView；通过 viewport（`maximum-scale=1, user-scalable=no`）与 `touch-action` 禁止整页缩放，裁剪页内部的捏合手势不受影响。

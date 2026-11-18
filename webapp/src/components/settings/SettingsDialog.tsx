@@ -43,7 +43,7 @@ import { Modal } from '../base/Modal.js'
 import { Select } from '../base/Select.js'
 import { showToast } from '../base/toastState.js'
 import { ApiKeyConfirm, ApiKeyField, useApiKeyEditor } from './ApiKeyField.js'
-import { closeSettings, useSettingsDialog, type SettingsSection } from './settingsDialogState.js'
+import { closeSettings, registerSettingsBackHandler, useSettingsDialog, type SettingsSection } from './settingsDialogState.js'
 import styles from './Settings.module.css'
 
 /** 设置页的二级页面 */
@@ -100,6 +100,19 @@ const SettingsPageView = () => {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [page, historyDelete.busy])
+
+  // 系统返回键：二级页面先回到设置首页，由原生 __deeplookBack 调用
+  useEffect(
+    () =>
+      registerSettingsBackHandler(() => {
+        if (page === 'root') {
+          return false
+        }
+        setPage('root')
+        return true
+      }),
+    [page]
+  )
 
   const title = page === 'root' ? t('settings') : t(pageTitles[page])
   return (
@@ -676,9 +689,45 @@ const AboutApp = () => {
     <div className={styles.about}>
       <div className={styles.aboutName}>deeplook</div>
       <div className={styles.aboutVersion}>
-        {t('settingsVersion')} 1.4.1
+        {t('settingsVersion')} 1.4.2
       </div>
       <p className={styles.subpageHint}>{t('aboutDescription')}</p>
+      <div className={styles.aboutCard}>
+        <div className={styles.aboutRow}>
+          <span>{t('aboutAuthor')}</span>
+          <span className={styles.aboutValue}>HuaGyuu</span>
+        </div>
+        <div className={styles.aboutRow}>
+          <span>{t('aboutGithub')}</span>
+          <a
+            className={styles.aboutLink}
+            href="https://github.com/HuaGyuu/deeplook"
+            target="_blank"
+            rel="noreferrer"
+          >
+            HuaGyuu/deeplook
+          </a>
+        </div>
+        <div className={styles.aboutRow}>
+          <span>{t('aboutFeedback')}</span>
+          <a
+            className={styles.aboutLink}
+            href="https://github.com/HuaGyuu/deeplook/issues"
+            target="_blank"
+            rel="noreferrer"
+          >
+            GitHub Issues
+          </a>
+        </div>
+        <div className={styles.aboutRow}>
+          <span>{t('aboutLicense')}</span>
+          <span className={styles.aboutValue}>MIT</span>
+        </div>
+        <div className={styles.aboutRow}>
+          <span>{t('aboutTech')}</span>
+          <span className={styles.aboutValue}>WebView + React</span>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1109,6 +1158,7 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
     />
   )
 }
+
 
 
 

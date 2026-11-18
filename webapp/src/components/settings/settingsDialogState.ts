@@ -13,7 +13,24 @@ export const useSettingsDialog = create(() => ({
 export const openSettings = (section: SettingsSection) =>
   useSettingsDialog.setState({ open: true, section })
 
-export const closeSettings = () => useSettingsDialog.setState({ open: false })
+/** 当前设置页注册的返回处理器：二级页面时先回首页，返回 true 表示已消费 */
+let backHandler: (() => boolean) | null = null
+
+export const registerSettingsBackHandler = (handler: (() => boolean) | null) => {
+  backHandler = handler
+  return () => {
+    if (backHandler === handler) {
+      backHandler = null
+    }
+  }
+}
+
+export const handleSettingsBack = (): boolean => (backHandler ? backHandler() : false)
+
+export const closeSettings = () => {
+  backHandler = null
+  useSettingsDialog.setState({ open: false })
+}
 
 /** 没有 API Key 时打开设置并选中 API Key 所在的「数据管理」，返回是否已有 Key */
 export const ensureApiKey = () => {
