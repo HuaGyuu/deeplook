@@ -842,10 +842,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: min(56vh, 520px);
+  height: min(60vh, 560px);
   overflow: hidden;
   border-radius: 18px;
   background-color: #0d0d0f;
+  touch-action: none;
 }
 
 .cropBackdrop {
@@ -920,5 +921,27 @@
   &:hover {
     text-decoration: underline;
   }
+}
+
+
+/* 完整图片裁剪：图片 contain 在舞台上，取景框为透明遮罩 */
+.cropSource {
+  position: absolute;
+  transform-origin: center center;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+
+.cropGuide {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  height: 82%;
+  transform: translate(-50%, -50%);
+  border-radius: 14px;
+  outline: 1px solid rgba(255, 255, 255, 0.65);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.58);
+  pointer-events: none;
 }
 

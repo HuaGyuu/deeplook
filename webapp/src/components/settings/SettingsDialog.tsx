@@ -252,7 +252,7 @@ const SettingsRoot = ({ onNavigate }: { onNavigate: (page: SettingsPage) => void
     {
       title: t('settingsGroupAbout'),
       rows: [
-        { page: 'about', icon: <IconInfoOutline16 />, label: t('aboutApp'), value: '1.4.1' },
+        { page: 'about', icon: <IconInfoOutline16 />, label: t('aboutApp'), value: APP_VERSION },
       ],
     },
   ]
@@ -362,6 +362,9 @@ const compressImage = (file: File): Promise<string> =>
   })
 
 /** 个性化：聊天背景图 */
+/** 应用版本号：只在这里维护一次，关于页和设置首页共用 */
+const APP_VERSION = '1.4.5'
+
 /** 手机屏幕形状的比例，用于裁剪框与预览；移动端直接跟随 WebView 视口，保证和真实背景一致 */
 const phoneAspect = () => {
   if (typeof window === 'undefined') {
@@ -416,11 +419,11 @@ const PersonalizationSettings = () => {
         initialOffsetY={chatBackground ? offsetY : 0}
         onCancel={() => setCropSource(null)}
         onConfirm={(value) => {
-          if (!setChatBackground(cropSource)) {
+          if (!setChatBackground(value.dataUrl)) {
             showToast({ key: 'chatBackgroundTooLarge', type: 'error' })
             return
           }
-          setChatBackgroundAdjust({ scale: value.scale, offsetX: value.offsetX, offsetY: value.offsetY })
+          setChatBackgroundAdjust({ scale: 100, offsetX: 0, offsetY: 0 })
           setCropSource(null)
         }}
       />
@@ -503,8 +506,8 @@ const PersonalizationSettings = () => {
 }
 
 /**
- * 背景裁剪界面：固定手机屏幕比例的取景框，框外压暗，框内即最终背景。
- * 单指拖动调整位置，双指缩放；确认后把缩放/偏移写回设置。
+ * 背景裁剪界面：完整图片显示在取景框后面，框外压暗、框内即最终背景。
+ * 单指拖动调整位置，双指缩放；确认时把框内区域画到 canvas，确保实际背景与预览一致。
  */
 const BackgroundCrop = ({
   image,
@@ -519,19 +522,22 @@ const BackgroundCrop = ({
   initialOffsetX: number
   initialOffsetY: number
   onCancel: () => void
-  onConfirm: (value: { scale: number; offsetX: number; offsetY: number }) => void
+  onConfirm: (value: { dataUrl: string }) => void
 }) => {
   const t = useTranslate()
-  const frameRef = useRef<HTMLDivElement>(null)
-  const [scale, setScale] = useState(initialScale / 100)
-  const [offset, setOffset] = useState({ x: initialOffsetX, y: initialOffsetY })
+  const stageRef = useRef<HTMLDivElement>(null)
+  const imageRef = useRef<HTMLImageElement>(null)
+  const guideRef = useRef<HTMLDivElement>(null)
   const [imageRatio, setImageRatio] = useState(1)
+  const [layout, setLayout] = useState({ width: 0, height: 0 })
+  const [scale, setScale] = useState(Math.max(1, initialScale / 100))
+  const [offset, setOffset] = useState({ x: initialOffsetX, y: initialOffsetY })
   const scaleRef = useRef(scale)
   const offsetRef = useRef(offset)
   scaleRef.current = scale
   offsetRef.current = offset
 
-  // 读取图片宽高比，用于计算 cover 后可平移的余量
+  // 读取图片宽高比，图片以 contain 方式完整显示
   useEffect(() => {
     const img = new Image()
     img.onload = () => {
@@ -543,25 +549,30 @@ const BackgroundCrop = ({
   }, [image])
 
   useEffect(() => {
-    const frame = frameRef.current
-    if (!frame) {
+    const stage = stageRef.current
+    if (!stage) {
       return
     }
-    const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
-    // 按 cover 的渲染尺寸计算最大可平移百分比，保证不露出空白
-    const maxOffsets = (currentScale: number) => {
-      const width = frame.clientWidth
-      const height = frame.clientHeight
-      const frameRatio = width / height
-      const baseWidth = imageRatio > frameRatio ? height * imageRatio : width
-      const baseHeight = imageRatio > frameRatio ? height : width / imageRatio
-      return {
-        x: Math.max(0, ((baseWidth * currentScale - width) / 2 / width) * 100),
-        y: Math.max(0, ((baseHeight * currentScale - height) / 2 / height) * 100),
-      }
+    const update = () => setLayout({ width: stage.clientWidth, height: stage.clientHeight })
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(stage)
+    return () => observer.disconnect()
+  }, [])
+
+  // 图片按 contain 的基准尺寸铺在舞台上，再叠加 translate/scale
+  const baseWidth = layout.width ? Math.min(layout.width, layout.height * imageRatio) : 0
+  const baseHeight = baseWidth && imageRatio ? baseWidth / imageRatio : 0
+  const baseLeft = (layout.width - baseWidth) / 2
+  const baseTop = (layout.height - baseHeight) / 2
+
+  useEffect(() => {
+    const stage = stageRef.current
+    if (!stage) {
+      return
     }
     const distance = (a: Touch, b: Touch) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
-    let pan: { x: number; y: number; startX: number; startY: number; width: number; height: number } | null = null
+    let pan: { x: number; y: number; startX: number; startY: number } | null = null
     let pinch: { distance: number; scale: number } | null = null
 
     const onTouchStart = (event: TouchEvent) => {
@@ -572,8 +583,6 @@ const BackgroundCrop = ({
           y: offsetRef.current.y,
           startX: touch.clientX,
           startY: touch.clientY,
-          width: frame.clientWidth,
-          height: frame.clientHeight,
         }
         pinch = null
       } else if (event.touches.length === 2) {
@@ -588,24 +597,11 @@ const BackgroundCrop = ({
     const onTouchMove = (event: TouchEvent) => {
       if (event.touches.length >= 2 && pinch) {
         event.preventDefault()
-        const nextScale = clamp(
-          (pinch.scale * distance(event.touches[0], event.touches[1])) / pinch.distance,
-          1,
-          3
-        )
-        setScale(nextScale)
-        setOffset((current) => {
-          const max = maxOffsets(nextScale)
-          return { x: clamp(current.x, -max.x, max.x), y: clamp(current.y, -max.y, max.y) }
-        })
+        setScale(Math.min(6, Math.max(0.3, (pinch.scale * distance(event.touches[0], event.touches[1])) / pinch.distance)))
       } else if (event.touches.length === 1 && pan) {
         event.preventDefault()
         const touch = event.touches[0]
-        const max = maxOffsets(scaleRef.current)
-        setOffset({
-          x: clamp(pan.x + ((touch.clientX - pan.startX) / pan.width) * 100, -max.x, max.x),
-          y: clamp(pan.y + ((touch.clientY - pan.startY) / pan.height) * 100, -max.y, max.y),
-        })
+        setOffset({ x: pan.x + touch.clientX - pan.startX, y: pan.y + touch.clientY - pan.startY })
       }
     }
 
@@ -614,32 +610,78 @@ const BackgroundCrop = ({
       pinch = null
     }
 
-    frame.addEventListener('touchstart', onTouchStart, { passive: true })
-    frame.addEventListener('touchmove', onTouchMove, { passive: false })
-    frame.addEventListener('touchend', onTouchEnd)
-    frame.addEventListener('touchcancel', onTouchEnd)
+    stage.addEventListener('touchstart', onTouchStart, { passive: true })
+    stage.addEventListener('touchmove', onTouchMove, { passive: false })
+    stage.addEventListener('touchend', onTouchEnd)
+    stage.addEventListener('touchcancel', onTouchEnd)
     return () => {
-      frame.removeEventListener('touchstart', onTouchStart)
-      frame.removeEventListener('touchmove', onTouchMove)
-      frame.removeEventListener('touchend', onTouchEnd)
-      frame.removeEventListener('touchcancel', onTouchEnd)
+      stage.removeEventListener('touchstart', onTouchStart)
+      stage.removeEventListener('touchmove', onTouchMove)
+      stage.removeEventListener('touchend', onTouchEnd)
+      stage.removeEventListener('touchcancel', onTouchEnd)
     }
-  }, [imageRatio])
+  }, [])
+
+  const cropToDataUrl = () => {
+    const img = imageRef.current
+    const guide = guideRef.current
+    if (!img || !guide || !img.naturalWidth || !img.naturalHeight) {
+      return null
+    }
+    const imageRect = img.getBoundingClientRect()
+    const guideRect = guide.getBoundingClientRect()
+    if (!imageRect.width || !imageRect.height) {
+      return null
+    }
+    const sx = ((guideRect.left - imageRect.left) / imageRect.width) * img.naturalWidth
+    const sy = ((guideRect.top - imageRect.top) / imageRect.height) * img.naturalHeight
+    const sw = (guideRect.width / imageRect.width) * img.naturalWidth
+    const sh = (guideRect.height / imageRect.height) * img.naturalHeight
+    const left = Math.max(0, sx)
+    const top = Math.max(0, sy)
+    const right = Math.min(img.naturalWidth, sx + sw)
+    const bottom = Math.min(img.naturalHeight, sy + sh)
+    if (right <= left || bottom <= top) {
+      return null
+    }
+    const outputWidth = 900
+    const outputHeight = Math.round((outputWidth * guideRect.height) / guideRect.width)
+    const canvas = document.createElement('canvas')
+    canvas.width = outputWidth
+    canvas.height = outputHeight
+    const context = canvas.getContext('2d')
+    if (!context) {
+      return null
+    }
+    context.fillStyle = '#000'
+    context.fillRect(0, 0, outputWidth, outputHeight)
+    const dx = ((left - sx) / sw) * outputWidth
+    const dy = ((top - sy) / sh) * outputHeight
+    const dw = ((right - left) / sw) * outputWidth
+    const dh = ((bottom - top) / sh) * outputHeight
+    context.drawImage(img, left, top, right - left, bottom - top, dx, dy, dw, dh)
+    return canvas.toDataURL('image/jpeg', 0.9)
+  }
 
   return (
     <div className={styles.cropScreen}>
       <p className={styles.subpageHint}>{t('chatBackgroundCropHint')}</p>
-      <div className={styles.cropStage}>
-        <img className={styles.cropBackdrop} src={image} alt="" />
-        <div ref={frameRef} className={styles.cropFrame} style={{ aspectRatio: phoneAspect() }}>
-          <div
-            className={styles.cropImage}
-            style={{
-              backgroundImage: `url("${image}")`,
-              transform: backgroundTransform(scale * 100, offset.x, offset.y),
-            }}
-          />
-        </div>
+      <div ref={stageRef} className={styles.cropStage}>
+        <img
+          ref={imageRef}
+          className={styles.cropSource}
+          src={image}
+          alt=""
+          draggable={false}
+          style={{
+            left: baseLeft,
+            top: baseTop,
+            width: baseWidth,
+            height: baseHeight,
+            transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+          }}
+        />
+        <div ref={guideRef} className={styles.cropGuide} style={{ aspectRatio: phoneAspect() }} />
       </div>
       <div className={styles.subpageActions}>
         <Button variant="outlined" size="m" onClick={onCancel}>
@@ -648,13 +690,14 @@ const BackgroundCrop = ({
         <Button
           variant="primary"
           size="m"
-          onClick={() =>
-            onConfirm({
-              scale: Math.round(scale * 100),
-              offsetX: Math.round(offset.x),
-              offsetY: Math.round(offset.y),
-            })
-          }
+          onClick={() => {
+            const dataUrl = cropToDataUrl()
+            if (!dataUrl) {
+              showToast({ key: 'chatBackgroundFailed', type: 'error' })
+              return
+            }
+            onConfirm({ dataUrl })
+          }}
         >
           {t('confirm')}
         </Button>
@@ -696,7 +739,7 @@ const AboutApp = () => {
     <div className={styles.about}>
       <div className={styles.aboutName}>deeplook</div>
       <div className={styles.aboutVersion}>
-        {t('settingsVersion')} 1.4.4
+        {t('settingsVersion')} {APP_VERSION}
       </div>
       <p className={styles.subpageHint}>{t('aboutDescription')}</p>
       <div className={styles.aboutCard}>
@@ -1165,6 +1208,8 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
     />
   )
 }
+
+
 
 
 

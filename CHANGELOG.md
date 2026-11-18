@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.5
+
+- 修复宽图裁剪：裁剪界面完整显示原图（不再裁成窄条）；框内区域通过 canvas 裁剪成手机比例，实际聊天背景与预览一致。
+- 修复设置首页关于条目版本号写死 1.4.1：版本号统一由 APP_VERSION 常量提供。
+
+
 ## 1.4.4
 
 - 修复语音输入仍失败：AndroidManifest 补充 MODIFY_AUDIO_SETTINGS 权限。Chromium WebView 录音同时要求 RECORD_AUDIO 与 MODIFY_AUDIO_SETTINGS，否则会报 No audio device will be available for recording。
@@ -51,6 +57,7 @@
 
 - 首个版本：基于 DeepSeek chat-demo 的 WebView 套壳安卓应用。
 - 补齐文件选择、ZIP 导出下载、麦克风权限、返回键、外链跳转、深浅色。
+
 
 
 
