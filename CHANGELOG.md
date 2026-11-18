@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.3
+
+- 修复聊天背景预览与真实背景不一致：实际背景层补上 `background-position: center`，裁剪框和预览跟随设备视口比例。
+- 裁剪界面增加整图暗色底图，框外可看到完整图片（压暗），框内为实际选区。
+- 语音录制兼容 Android WebView：AudioContext 不支持 16k 时回退设备默认采样率，并在编码 WAV 时重采样到 16k。
+
 ## 1.4.2
 
 - 关于页新增作者 HuaGyuu、GitHub 仓库、问题反馈、MIT 协议与技术栈。
@@ -41,3 +47,5 @@
 
 - 首个版本：基于 DeepSeek chat-demo 的 WebView 套壳安卓应用。
 - 补齐文件选择、ZIP 导出下载、麦克风权限、返回键、外链跳转、深浅色。
+
+

@@ -362,8 +362,14 @@ const compressImage = (file: File): Promise<string> =>
   })
 
 /** 个性化：聊天背景图 */
-/** 手机屏幕形状的比例，用于裁剪框与预览 */
-const PHONE_ASPECT = '9 / 19.5'
+/** 手机屏幕形状的比例，用于裁剪框与预览；移动端直接跟随 WebView 视口，保证和真实背景一致 */
+const phoneAspect = () => {
+  if (typeof window === 'undefined') {
+    return '9 / 19.5'
+  }
+  const ratio = window.innerWidth / window.innerHeight
+  return ratio > 0.75 ? '9 / 19.5' : `${window.innerWidth} / ${window.innerHeight}`
+}
 
 /** 把背景层按“移动/缩放”的变换套用，预览和聊天页共用同一套参数 */
 const backgroundTransform = (scale: number, offsetX: number, offsetY: number) =>
@@ -425,7 +431,7 @@ const PersonalizationSettings = () => {
     <div className={styles.subpage}>
       <p className={styles.subpageHint}>{t('chatBackgroundHint')}</p>
       <div className={styles.phonePreviewWrap}>
-        <div className={styles.phonePreview} style={{ aspectRatio: PHONE_ASPECT }}>
+        <div className={styles.phonePreview} style={{ aspectRatio: phoneAspect() }}>
           {chatBackground ? (
             <>
               <div
@@ -624,7 +630,8 @@ const BackgroundCrop = ({
     <div className={styles.cropScreen}>
       <p className={styles.subpageHint}>{t('chatBackgroundCropHint')}</p>
       <div className={styles.cropStage}>
-        <div ref={frameRef} className={styles.cropFrame} style={{ aspectRatio: PHONE_ASPECT }}>
+        <img className={styles.cropBackdrop} src={image} alt="" />
+        <div ref={frameRef} className={styles.cropFrame} style={{ aspectRatio: phoneAspect() }}>
           <div
             className={styles.cropImage}
             style={{
@@ -689,7 +696,7 @@ const AboutApp = () => {
     <div className={styles.about}>
       <div className={styles.aboutName}>deeplook</div>
       <div className={styles.aboutVersion}>
-        {t('settingsVersion')} 1.4.2
+        {t('settingsVersion')} 1.4.3
       </div>
       <p className={styles.subpageHint}>{t('aboutDescription')}</p>
       <div className={styles.aboutCard}>
@@ -1158,6 +1165,9 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
     />
   )
 }
+
+
+
 
 
 
