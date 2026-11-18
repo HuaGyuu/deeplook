@@ -44,8 +44,8 @@ const releaseNotes = (sha256, sizeMb) => [
   '- 修复设置二级页面按系统返回键直接退出设置：现在先回到设置首页，再按一次退出',
   '- 修复聊天背景预览与真实背景不一致：实际背景层补上居中定位，裁剪框和预览跟随设备视口比例',
   '- 裁剪界面增加整图暗色底图，框外可看到完整图片，框内为实际选区',
-  '- 修复语音输入：录音前先向原生申请麦克风权限；AudioContext 不支持 16k 时回退并重采样为 16k
-  - 修复语音仍失败：补充 MODIFY_AUDIO_SETTINGS 权限（Chromium WebView 录音同时需要 RECORD_AUDIO 和 MODIFY_AUDIO_SETTINGS）',
+  '- 修复语音输入：录音前先向原生申请麦克风权限；AudioContext 不支持 16k 时回退并重采样为 16k',
+  '- 修复语音仍失败：补充 MODIFY_AUDIO_SETTINGS 权限（Chromium WebView 录音同时需要 RECORD_AUDIO 和 MODIFY_AUDIO_SETTINGS）',
   '',
   '### 安装',
   `下载下方 \`deeplook-${VERSION}.apk\` 安装（需允许未知来源），首次打开到 **设置 → 数据管理** 填入 DeepSeek API Key。`,
