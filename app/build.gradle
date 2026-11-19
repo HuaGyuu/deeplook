@@ -3,18 +3,18 @@ plugins {
 }
 
 android {
-    namespace 'com.deepseek.chatdemo'
+    namespace 'com.huagyuu.deeplook'
     compileSdk 36
     // 固定使用本机已安装的构建工具，避免 AGP 自动下载（离线/代理环境会失败）
     buildToolsVersion '36.0.0'
 
     defaultConfig {
-        applicationId 'com.deepseek.chatdemo'
+        applicationId 'com.huagyuu.deeplook'
         // Android 8.0：WebViewAssetLoader、现代 WebView 与深色模式等能力都可用
         minSdk 26
         targetSdk 36
-        versionCode 12
-        versionName '1.4.7'
+        versionCode 13
+        versionName '1.4.8'
         // 只打包中文与英文资源
         resourceConfigurations += ['zh', 'en']
     }
@@ -63,6 +63,7 @@ dependencies {
     implementation 'androidx.activity:activity:1.11.0'
     implementation 'androidx.core:core:1.17.0'
 }
+
 
 
 

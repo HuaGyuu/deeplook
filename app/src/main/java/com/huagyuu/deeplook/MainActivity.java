@@ -1,4 +1,4 @@
-package com.deepseek.chatdemo;
+package com.huagyuu.deeplook;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
@@ -696,3 +696,4 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
     }
 }
+

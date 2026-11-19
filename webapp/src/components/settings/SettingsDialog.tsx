@@ -363,7 +363,7 @@ const compressImage = (file: File): Promise<string> =>
 
 /** 个性化：聊天背景图 */
 /** 应用版本号：只在这里维护一次，关于页和设置首页共用 */
-const APP_VERSION = '1.4.7'
+const APP_VERSION = '1.4.8'
 
 /** 手机屏幕形状的比例，用于裁剪框与预览；移动端直接跟随 WebView 视口，保证和真实背景一致 */
 const phoneAspect = () => {
@@ -1236,6 +1236,7 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
     />
   )
 }
+
 
 
 

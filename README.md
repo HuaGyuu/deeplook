@@ -34,7 +34,7 @@
 前往 [Releases](https://github.com/HuaGyuu/deeplook/releases) 下载最新的 `deeplook-x.y.z.apk`，
 传到手机安装（需允许安装未知来源应用），首次打开后到「设置 → 数据管理」填入 DeepSeek API Key 即可使用。
 
-- 包名：`com.deepseek.chatdemo`
+- 包名：`com.huagyuu.deeplook`
 - 最低系统：Android 8.0（API 26），目标 Android 16（API 36）
 - Release APK 使用项目内 debug 签名，便于直接安装体验；上架应用商店请替换为正式签名。
 
@@ -119,6 +119,7 @@ deeplook/
 [MIT](LICENSE) © 2026 HuaGyuu
 
 网页层来自 deepseek-ai/deepseek-chat-demo（MIT），其许可证见 `webapp/LICENSE` 与 `app/src/main/assets/web/LICENSE`，第三方说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
 
 
 

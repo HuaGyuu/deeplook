@@ -1,4 +1,4 @@
-package com.deepseek.chatdemo;
+package com.huagyuu.deeplook;
 
 import android.webkit.JavascriptInterface;
 
@@ -29,4 +29,5 @@ final class AndroidBridge {
         activity.requestMicrophonePermission(requestId);
     }
 }
+
 

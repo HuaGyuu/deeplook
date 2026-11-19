@@ -1,4 +1,4 @@
-package com.deepseek.chatdemo;
+package com.huagyuu.deeplook;
 
 import android.app.Application;
 
@@ -16,3 +16,4 @@ public class ChatApplication extends Application {
         }
     }
 }
+

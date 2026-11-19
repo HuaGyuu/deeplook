@@ -50,12 +50,13 @@ const releaseNotes = (sha256, sizeMb) => [
   '- 修复语音仍失败：补充 MODIFY_AUDIO_SETTINGS 权限（Chromium WebView 录音同时需要 RECORD_AUDIO 和 MODIFY_AUDIO_SETTINGS）',
   '- 历史导入增加实时进度（百分比 + 进度条），大 ZIP 导入时不再看起来卡住',
   '- 优化历史导入：一次性读取 ZIP 中央目录，解决 74MB 官方包导入时长时间停在 0%',
+  '- 应用包名改为 com.huagyuu.deeplook（旧包名数据不自动迁移，可用导出/导入迁移）',
   '',
   '### 安装',
   `下载下方 \`deeplook-${VERSION}.apk\` 安装（需允许未知来源），首次打开到 **设置 → 数据管理** 填入 DeepSeek API Key。`,
   '',
   '### 说明',
-  `- 版本：${VERSION}（versionCode 12）`,
+  `- 版本：${VERSION}（versionCode 13）`,
   '- 包名：`com.deepseek.chatdemo`',
   `- 大小：${sizeMb} MB`,
   `- SHA-256：\`${sha256}\``,
@@ -141,6 +142,7 @@ const releaseNotes = (sha256, sizeMb) => [
   console.error('FAILED', error.message);
   process.exit(1);
 });
+
 
 
 
