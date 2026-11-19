@@ -945,3 +945,20 @@
   pointer-events: none;
 }
 
+
+/* 历史导入进度 */
+.progressTrack {
+  width: 100%;
+  height: 4px;
+  margin-top: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background-color: var(--dsw-alias-bg-layer-3);
+}
+
+.progressBar {
+  height: 100%;
+  border-radius: inherit;
+  background-color: var(--dsw-alias-brand-primary);
+  transition: width 0.2s ease;
+}

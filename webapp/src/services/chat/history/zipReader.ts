@@ -238,14 +238,21 @@ export type ArchiveEntry = {
  * 按条目在文件中的物理顺序逐条、逐块解压，跳过目录条目。
  * 调用方必须消费完当前条目的数据，再请求下一个条目。
  */
-export async function* readArchive(file: File): AsyncGenerator<ArchiveEntry> {
+export async function* readArchive(
+  file: File,
+  onProgress?: (processed: number, total: number) => void
+): AsyncGenerator<ArchiveEntry> {
   const directory = await readDirectory(file)
+  const total = directory.entries.filter((entry) => !entry.path.endsWith('/')).length
+  let processed = 0
   for (const [index, entry] of directory.entries.entries()) {
     const boundary = directory.entries[index + 1]?.offset ?? directory.offset
     const start = await readEntryOffset(file, entry, boundary)
     if (entry.path.endsWith('/')) {
       continue
     }
+    processed += 1
+    onProgress?.(processed, total)
     let completed = false
     const stream = async function* (): AsyncGenerator<Uint8Array> {
       let written = 0
@@ -314,3 +321,4 @@ export const skipEntry = async (entry: ArchiveEntry): Promise<void> => {
     // 丢弃数据。
   }
 }
+

@@ -48,12 +48,13 @@ const releaseNotes = (sha256, sizeMb) => [
   '- 修复设置首页关于条目版本号写死 1.4.1：统一由 APP_VERSION 常量提供',
   '- 修复语音输入：录音前先向原生申请麦克风权限；AudioContext 不支持 16k 时回退并重采样为 16k',
   '- 修复语音仍失败：补充 MODIFY_AUDIO_SETTINGS 权限（Chromium WebView 录音同时需要 RECORD_AUDIO 和 MODIFY_AUDIO_SETTINGS）',
+  '- 历史导入增加实时进度（百分比 + 进度条），大 ZIP 导入时不再看起来卡住',
   '',
   '### 安装',
   `下载下方 \`deeplook-${VERSION}.apk\` 安装（需允许未知来源），首次打开到 **设置 → 数据管理** 填入 DeepSeek API Key。`,
   '',
   '### 说明',
-  `- 版本：${VERSION}（versionCode 10）`,
+  `- 版本：${VERSION}（versionCode 11）`,
   '- 包名：`com.deepseek.chatdemo`',
   `- 大小：${sizeMb} MB`,
   `- SHA-256：\`${sha256}\``,
@@ -139,5 +140,6 @@ const releaseNotes = (sha256, sizeMb) => [
   console.error('FAILED', error.message);
   process.exit(1);
 });
+
 
 

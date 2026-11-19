@@ -363,7 +363,7 @@ const compressImage = (file: File): Promise<string> =>
 
 /** 个性化：聊天背景图 */
 /** 应用版本号：只在这里维护一次，关于页和设置首页共用 */
-const APP_VERSION = '1.4.5'
+const APP_VERSION = '1.4.6'
 
 /** 手机屏幕形状的比例，用于裁剪框与预览；移动端直接跟随 WebView 视口，保证和真实背景一致 */
 const phoneAspect = () => {
@@ -1060,12 +1060,14 @@ const SettingCell = ({
   label,
   description,
   status,
+  progress,
   action,
   className,
 }: {
   label: string
   description?: string
   status: Status
+  progress?: number
   action: ReactNode
   className?: string
 }) => {
@@ -1081,6 +1083,14 @@ const SettingCell = ({
               : description}
           </div>
         ) : null}
+        {progress !== undefined ? (
+          <div className={styles.progressTrack}>
+            <div
+              className={styles.progressBar}
+              style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
+            />
+          </div>
+        ) : null}
       </div>
       {action}
     </div>
@@ -1092,7 +1102,9 @@ const useHistoryImport = () => {
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState<Status>(null)
+  const [progress, setProgress] = useState<number | null>(null)
   const importing = useRef(false)
+  const progressRef = useRef(0)
 
   const confirm = async () => {
     if (!file || importing.current) {
@@ -1102,18 +1114,27 @@ const useHistoryImport = () => {
     setFile(null)
     setBusy(true)
     setStatus(null)
+    setProgress(0)
+    progressRef.current = 0
     try {
-      const count = await importHistory(file)
+      const count = await importHistory(file, (processed, total) => {
+        const percent = total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 0
+        if (percent >= progressRef.current + 1 || percent === 100) {
+          progressRef.current = percent
+          setProgress(percent)
+        }
+      })
       setStatus({ key: count === 1 ? 'historyImportedOne' : 'historyImported', params: { count } })
     } catch {
       setStatus({ key: 'historyImportFailed', error: true })
     } finally {
       importing.current = false
       setBusy(false)
+      setProgress(null)
     }
   }
 
-  return { file, busy, status, select: setFile, cancel: () => setFile(null), confirm }
+  return { file, busy, status, progress, select: setFile, cancel: () => setFile(null), confirm }
 }
 
 /** 导入 = 覆盖：用选中文件替换本地全部会话与附件。 */
@@ -1131,7 +1152,8 @@ const ImportHistory = ({
     <SettingCell
       label={t('historyImport')}
       description={t('historyImportDescription')}
-      status={historyImport.status}
+      status={historyImport.busy ? { key: 'historyImporting', params: { percent: historyImport.progress ?? 0 } } : historyImport.status}
+      progress={historyImport.busy ? historyImport.progress ?? 0 : undefined}
       action={
         <>
           <Button
@@ -1208,6 +1230,9 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
     />
   )
 }
+
+
+
 
 
 
