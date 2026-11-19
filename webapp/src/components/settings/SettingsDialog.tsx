@@ -363,7 +363,7 @@ const compressImage = (file: File): Promise<string> =>
 
 /** 个性化：聊天背景图 */
 /** 应用版本号：只在这里维护一次，关于页和设置首页共用 */
-const APP_VERSION = '1.4.6'
+const APP_VERSION = '1.4.7'
 
 /** 手机屏幕形状的比例，用于裁剪框与预览；移动端直接跟随 WebView 视口，保证和真实背景一致 */
 const phoneAspect = () => {
@@ -1114,7 +1114,7 @@ const useHistoryImport = () => {
     setFile(null)
     setBusy(true)
     setStatus(null)
-    setProgress(0)
+    setProgress(null)
     progressRef.current = 0
     try {
       const count = await importHistory(file, (processed, total) => {
@@ -1152,8 +1152,14 @@ const ImportHistory = ({
     <SettingCell
       label={t('historyImport')}
       description={t('historyImportDescription')}
-      status={historyImport.busy ? { key: 'historyImporting', params: { percent: historyImport.progress ?? 0 } } : historyImport.status}
-      progress={historyImport.busy ? historyImport.progress ?? 0 : undefined}
+      status={
+        historyImport.busy
+          ? historyImport.progress === null
+            ? ({ key: 'historyImportPreparing' } as Status)
+            : ({ key: 'historyImporting', params: { percent: historyImport.progress } } as Status)
+          : historyImport.status
+      }
+      progress={historyImport.busy ? historyImport.progress ?? undefined : undefined}
       action={
         <>
           <Button
@@ -1230,6 +1236,8 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
     />
   )
 }
+
+
 
 
 

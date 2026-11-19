@@ -169,6 +169,7 @@ export const en = {
     'The uploaded chat history will replace all your current chats. Import anyway?',
   historyImportDescription:
     'Importing chat history replaces all local chats and attachments. Supports ZIP files exported from DeepSeek.',
+  historyImportPreparing: 'Reading archive…',
   historyImporting: 'Importing chat history… {percent}%',
   historyImportedOne: 'Imported 1 chat',
   historyImported: 'Imported {count} chats',
@@ -231,6 +232,7 @@ export const en = {
   settingsLocaleZhCN: 'Simplified Chinese',
   settingsLocaleEnUS: 'English',
 } satisfies Record<keyof typeof zh, string>
+
 
 
 

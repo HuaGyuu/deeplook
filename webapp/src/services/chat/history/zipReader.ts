@@ -117,6 +117,8 @@ const readDirectory = async (file: File): Promise<{ entries: Entry[]; offset: nu
   ) {
     invalid()
   }
+  // 一次读完整个中央目录，避免 Android WebView 上为每个条目做一次 file.slice 导致长时间无响应。
+  const directory = await readBytes(file, offset, size)
   const entries: Entry[] = []
   const paths = new Set<string>()
   let cursor = 0
@@ -124,7 +126,7 @@ const readDirectory = async (file: File): Promise<{ entries: Entry[]; offset: nu
     if (cursor + 46 > size) {
       invalid()
     }
-    const view = viewOf(await readBytes(file, offset + cursor, 46))
+    const view = viewOf(directory.subarray(cursor, cursor + 46))
     if (view.getUint32(0, true) !== 0x02014b50) {
       invalid()
     }
@@ -150,7 +152,7 @@ const readDirectory = async (file: File): Promise<{ entries: Entry[]; offset: nu
     ) {
       invalid()
     }
-    const name = await readBytes(file, offset + cursor + 46, nameLength)
+    const name = directory.subarray(cursor + 46, cursor + 46 + nameLength)
     const path = decodePath(name, flags)
     // 目录和同名文件也不能互相覆盖。
     const identity = path.endsWith('/') ? path.slice(0, -1) : path
@@ -158,7 +160,7 @@ const readDirectory = async (file: File): Promise<{ entries: Entry[]; offset: nu
       invalid()
     }
     paths.add(identity)
-    checkExtra(await readBytes(file, offset + cursor + 46 + nameLength, extraLength))
+    checkExtra(directory.subarray(cursor + 46 + nameLength, cursor + 46 + nameLength + extraLength))
     entries.push({
       path,
       name,
