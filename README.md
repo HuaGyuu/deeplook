@@ -12,7 +12,8 @@
 - 会话置顶、图片上传、右滑打开侧边栏；
 - 聊天背景图片：手机比例裁剪、拖动/双指缩放、发白程度调节；
 - 上下文压缩：顶栏按钮 / 80%、90%、100% 提示，压缩后用摘要开启新对话；
-- 全局搜索：按关键词搜索所有对话标题和内容；
+- 全局搜索：按关键词搜索所有对话标题和内容，支持多个匹配项和跳转高亮；
+- 检查更新：关于页请求 GitHub 最新 Release，可下载并安装 APK；
 - 独立设置页（分组 + 二级菜单），深浅色主题、中英文、历史导入导出、语音输入与朗读。
 
 > 本项目只做客户端，不代理或存储你的聊天内容；API Key 与全部数据仅保存在本机。
@@ -121,6 +122,7 @@ deeplook/
 [MIT](LICENSE) © 2026 HuaGyuu
 
 网页层来自 deepseek-ai/deepseek-chat-demo（MIT），其许可证见 `webapp/LICENSE` 与 `app/src/main/assets/web/LICENSE`，第三方说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
 
 
 

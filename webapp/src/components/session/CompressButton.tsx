@@ -1,12 +1,10 @@
-import { useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
-import { compressToNewChat } from '../../services/chat/compressFlow.js'
 import type { Session } from '../../services/chat/types.js'
 import { IconCompressOutline16 } from '../base/icons.js'
 import { IconButton } from '../base/IconButton.js'
-import { showToast } from '../base/toastState.js'
+import { useCompressConfirm } from './CompressConfirm.js'
 
-/** 顶栏的压缩上下文按钮：压缩当前会话并开启新会话。 */
+/** 顶栏的压缩上下文按钮：先弹出说明和确认，不直接压缩。 */
 export const CompressButton = ({
   session,
   size = 'm',
@@ -17,34 +15,19 @@ export const CompressButton = ({
   disabled?: boolean
 }) => {
   const t = useTranslate()
-  const [busy, setBusy] = useState(false)
-  const label = busy ? t('compressing') : t('compressContext')
-  const title = t('compressedChatTitle', { title: session.title || t('untitledChat') })
+  const confirm = useCompressConfirm(session, disabled)
   return (
-    <IconButton
-      size={size}
-      tone="primary"
-      icon={<IconCompressOutline16 />}
-      tooltip={label}
-      aria-label={label}
-      disabled={disabled || busy}
-      onClick={async () => {
-        if (busy) {
-          return
-        }
-        setBusy(true)
-        try {
-          if (await compressToNewChat(session, title)) {
-            showToast({ key: 'contextCompressed' })
-          } else {
-            showToast({ key: 'compressFailed', type: 'error' })
-          }
-        } catch {
-          showToast({ key: 'compressFailed', type: 'error' })
-        } finally {
-          setBusy(false)
-        }
-      }}
-    />
+    <>
+      <IconButton
+        size={size}
+        tone="primary"
+        icon={<IconCompressOutline16 />}
+        tooltip={t('compressContext')}
+        aria-label={t('compressContext')}
+        disabled={disabled || confirm.busy}
+        onClick={confirm.request}
+      />
+      {confirm.modal}
+    </>
   )
 }

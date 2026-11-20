@@ -7,7 +7,7 @@ import { formatDate } from '../../utils/format.js'
 import { IconCloseOutline16, IconSearchOutline16 } from '../base/icons.js'
 import { IconButton } from '../base/IconButton.js'
 import { closeMobileSider } from '../sider/mobileSiderState.js'
-import { closeGlobalSearch, useGlobalSearch } from './globalSearchState.js'
+import { closeGlobalSearch, setSearchTarget, useGlobalSearch } from './globalSearchState.js'
 import styles from './GlobalSearch.module.css'
 
 const startOfDay = (time: number) => new Date(time).setHours(0, 0, 0, 0)
@@ -130,10 +130,11 @@ export const GlobalSearch = () => {
         <div className={styles.results}>
           {hits.map((hit) => (
             <button
-              key={hit.sessionId}
+              key={hit.key}
               type="button"
               className={styles.hit}
               onClick={() => {
+                setSearchTarget({ sessionId: hit.sessionId, messageId: hit.messageId })
                 selectSession(hit.sessionId)
                 closeGlobalSearch()
                 if (isMobile) {

@@ -5,6 +5,11 @@ export const zh = {
   collapseSiderbarButton: '收起边栏',
   newChat: '开启新对话',
   compressContext: '压缩上下文',
+  compressConfirmTitle: '压缩当前上下文？',
+  compressConfirmDescription: '将当前对话总结成一段压缩摘要，并用它开启一个新对话。原对话会保留，不会被删除。',
+  compressConfirmUsage: '当前上下文已用 {percent}%。',
+  compressConfirmNote: '新对话只携带摘要，较早的细节可能不完整；压缩后你仍可以回到原对话查看。',
+  compressAndNewChat: '压缩并开启新对话',
   compressing: '正在压缩…',
   contextUsage: '上下文已用 {percent}%，建议压缩后继续',
   contextFull: '上下文已满，建议压缩后继续',
@@ -73,6 +78,16 @@ export const zh = {
   aboutFeedback: '问题反馈',
   aboutLicense: '开源协议',
   aboutTech: '技术栈',
+  currentVersion: '当前版本',
+  checkUpdate: '检查更新',
+  checkingUpdate: '检查中…',
+  upToDate: '已是最新版本',
+  newVersionAvailable: '发现新版本 {version}',
+  downloadAndInstall: '下载并安装',
+  downloadingUpdate: '下载中 {percent}%',
+  updatePermission: '请允许安装未知来源应用，返回后会继续安装。',
+  updateInstalling: '下载完成，正在打开安装器…',
+  updateFailed: '检查更新失败',
   deleteSessionModalContentTitle: '永久删除对话',
   deleteSessionWithFilesDescription: '删除后，该对话及其中上传的文件将不可恢复。确认删除吗？',
   cancel: '取消',
@@ -238,6 +253,8 @@ export const zh = {
   settingsLocaleZhCN: '简体中文',
   settingsLocaleEnUS: 'English',
 } as const
+
+
 
 
 

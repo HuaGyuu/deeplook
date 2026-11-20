@@ -35,3 +35,20 @@
   margin: 0 auto;
   padding-bottom: 24px;
 }
+
+.searchTarget {
+  border-radius: 12px;
+  animation: searchTargetPulse 2.6s ease;
+}
+
+@keyframes searchTargetPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+
+  15%,
+  65% {
+    box-shadow: 0 0 0 3px var(--dsw-alias-brand-primary);
+  }
+}

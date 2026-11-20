@@ -14,10 +14,14 @@ export const SessionView = ({
   session,
   streaming,
   siderCollapsed,
+  targetMessageId,
+  onTargetReached,
 }: {
   session: Session
   streaming: boolean
   siderCollapsed: boolean
+  targetMessageId?: string
+  onTargetReached?: () => void
 }) => {
   const t = useTranslate()
   const isMobile = useIsMobile()
@@ -39,6 +43,8 @@ export const SessionView = ({
       <MessageList
         session={session}
         streaming={streaming}
+        targetMessageId={targetMessageId}
+        onTargetReached={onTargetReached}
         footer={
           <div className={styles.inputContainer}>
             <ContextBanner session={session} disabled={streaming} />

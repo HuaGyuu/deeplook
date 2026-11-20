@@ -11,7 +11,7 @@ import {
 } from '../services/chat/store.js'
 import { SearchPanel } from '../components/search/SearchPanel.js'
 import { GlobalSearch } from '../components/globalSearch/GlobalSearch.js'
-import { closeGlobalSearch, useGlobalSearch } from '../components/globalSearch/globalSearchState.js'
+import { clearSearchTarget, closeGlobalSearch, useGlobalSearch } from '../components/globalSearch/globalSearchState.js'
 import { closeSearchPanel } from '../components/search/searchPanelState.js'
 import { SessionView } from '../components/session/SessionView.js'
 import { MobileHeader } from '../components/session/MobileHeader.js'
@@ -56,6 +56,7 @@ export const App = () => {
     state.activeId === null ? false : Object.hasOwn(state.streaming, state.activeId)
   )
   const activeId = useChatStore((state) => state.activeId)
+  const searchTarget = useGlobalSearch((state) => state.target)
 
   usePreventPageScroll(isMobile)
   useSwipeSider(isMobile)
@@ -181,6 +182,8 @@ export const App = () => {
                 session={session}
                 streaming={streaming}
                 siderCollapsed={siderCollapsed}
+                targetMessageId={searchTarget?.sessionId === session.id ? searchTarget.messageId ?? undefined : undefined}
+                onTargetReached={clearSearchTarget}
               />
             ) : (
               <Welcome />
@@ -195,6 +198,7 @@ export const App = () => {
     </>
   )
 }
+
 
 
 

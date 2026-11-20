@@ -37,10 +37,14 @@ export const MessageList = ({
   session,
   streaming,
   footer,
+  targetMessageId,
+  onTargetReached,
 }: {
   session: Session
   streaming: boolean
   footer: React.ReactNode
+  targetMessageId?: string
+  onTargetReached?: () => void
 }) => {
   const isMobile = useIsMobile()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -100,6 +104,27 @@ export const MessageList = ({
   }, [session.id, lastMessageId, scrollToBottom])
 
   useEffect(closeSearchPanel, [session.id, lastMessageId])
+
+  // 从全局搜索点进来时，滚到命中的消息并短暂高亮。
+  useEffect(() => {
+    if (!targetMessageId) {
+      return
+    }
+    stickyRef.current = false
+    const timer = window.setTimeout(() => {
+      const element = scrollRef.current?.querySelector<HTMLElement>(
+        `[data-message-id="${CSS.escape(targetMessageId)}"]`
+      )
+      if (!element) {
+        return
+      }
+      element.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      element.classList.add(styles.searchTarget)
+      window.setTimeout(() => element.classList.remove(styles.searchTarget), 2600)
+      onTargetReached?.()
+    }, 80)
+    return () => window.clearTimeout(timer)
+  }, [targetMessageId, session.id, onTargetReached])
 
   const selectVersion = useCallback(
     (messageId: string, anchorTop: number) => {

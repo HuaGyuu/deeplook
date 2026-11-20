@@ -22,6 +22,8 @@ import {
   importHistory,
 } from '../../services/chat/backup.js'
 import { useIsMobile } from '../../app/viewport.js'
+import { APP_VERSION } from '../../services/appVersion.js'
+import { UpdateChecker } from './UpdateChecker.js'
 import { useChatStore } from '../../services/chat/store.js'
 import { regionCodes, getRegionName, provinces } from '../../services/location.js'
 import {
@@ -362,9 +364,6 @@ const compressImage = (file: File): Promise<string> =>
   })
 
 /** 个性化：聊天背景图 */
-/** 应用版本号：只在这里维护一次，关于页和设置首页共用 */
-const APP_VERSION = '1.5.0'
-
 /** 手机屏幕形状的比例，用于裁剪框与预览；移动端直接跟随 WebView 视口，保证和真实背景一致 */
 const phoneAspect = () => {
   if (typeof window === 'undefined') {
@@ -778,6 +777,7 @@ const AboutApp = () => {
           <span className={styles.aboutValue}>WebView + React</span>
         </div>
       </div>
+      <UpdateChecker />
     </div>
   )
 }
@@ -1236,6 +1236,7 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
     />
   )
 }
+
 
 
 

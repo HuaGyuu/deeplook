@@ -14,6 +14,7 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.MediaStore;
+import android.provider.Settings;
 import android.util.Base64;
 import android.view.View;
 import android.view.ViewGroup;
@@ -39,6 +40,7 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
@@ -46,12 +48,20 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.webkit.WebViewAssetLoader;
 import androidx.webkit.WebViewCompat;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+
+import org.json.JSONObject;
 
 /**
  * 套壳容器：用 WebViewAssetLoader 把 app/src/main/assets/web 下的静态站映射到
@@ -516,6 +526,222 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // ---------------- 应用更新 ----------------
+
+    private static final String UPDATE_RELEASE_URL =
+            "https://api.github.com/repos/HuaGyuu/deeplook/releases/latest";
+
+    private File pendingUpdateFile;
+    private boolean updateChecking;
+    private boolean updateDownloading;
+
+    /** 请求 GitHub 最新 Release，结果通过 window.__deeplookUpdate('check', …) 回调页面。 */
+    void checkForUpdate() {
+        if (updateChecking) {
+            return;
+        }
+        updateChecking = true;
+        new Thread(() -> {
+            HttpURLConnection connection = null;
+            try {
+                URL url = new URL(UPDATE_RELEASE_URL);
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(15000);
+                connection.setReadTimeout(15000);
+                connection.setRequestProperty("Accept", "application/vnd.github+json");
+                connection.setRequestProperty("User-Agent", "deeplook-android");
+                int code = connection.getResponseCode();
+                InputStream input = code >= 200 && code < 300
+                        ? connection.getInputStream() : connection.getErrorStream();
+                String body = readText(input);
+                if (code >= 200 && code < 300) {
+                    notifyUpdateCheck(true, body, null);
+                } else {
+                    notifyUpdateCheck(false, null, "HTTP " + code);
+                }
+            } catch (Exception e) {
+                notifyUpdateCheck(false, null, e.getMessage());
+            } finally {
+                if (connection != null) {
+                    connection.disconnect();
+                }
+                updateChecking = false;
+            }
+        }).start();
+    }
+
+    private static String readText(@Nullable InputStream input) throws IOException {
+        if (input == null) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(input, StandardCharsets.UTF_8))) {
+            char[] buffer = new char[4096];
+            int read;
+            while ((read = reader.read(buffer)) != -1) {
+                builder.append(buffer, 0, read);
+            }
+        }
+        return builder.toString();
+    }
+
+    private void notifyUpdateCheck(boolean ok, @Nullable String body, @Nullable String message) {
+        mainHandler.post(() -> {
+            if (webView == null) {
+                return;
+            }
+            StringBuilder payload = new StringBuilder("{\"ok\":").append(ok);
+            if (body != null) {
+                payload.append(",\"body\":").append(JSONObject.quote(body));
+            }
+            if (message != null) {
+                payload.append(",\"message\":").append(JSONObject.quote(message));
+            }
+            payload.append('}');
+            webView.evaluateJavascript(
+                    "window.__deeplookUpdate && window.__deeplookUpdate('check',"
+                            + payload + ")", null);
+        });
+    }
+
+    /** 下载 APK 到 cache/updates，然后拉起系统安装器。 */
+    void downloadUpdate(String urlString, String version) {
+        if (updateDownloading) {
+            return;
+        }
+        updateDownloading = true;
+        notifyUpdateDownload("downloading", 0, null);
+        new Thread(() -> {
+            HttpURLConnection connection = null;
+            InputStream input = null;
+            FileOutputStream output = null;
+            File target = null;
+            try {
+                File dir = new File(getCacheDir(), "updates");
+                if (!dir.exists() && !dir.mkdirs()) {
+                    throw new IOException("cannot create update dir");
+                }
+                target = new File(dir, sanitizeFileName(
+                        "deeplook-" + (version == null ? "latest" : version) + ".apk"));
+                URL url = new URL(urlString);
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setConnectTimeout(20000);
+                connection.setReadTimeout(30000);
+                connection.setInstanceFollowRedirects(true);
+                connection.setRequestProperty("User-Agent", "deeplook-android");
+                int code = connection.getResponseCode();
+                if (code < 200 || code >= 300) {
+                    throw new IOException("HTTP " + code);
+                }
+                long total = connection.getContentLengthLong();
+                input = connection.getInputStream();
+                output = new FileOutputStream(target);
+                byte[] buffer = new byte[8192];
+                long downloaded = 0;
+                int lastPercent = -1;
+                int read;
+                while ((read = input.read(buffer)) != -1) {
+                    output.write(buffer, 0, read);
+                    downloaded += read;
+                    if (total > 0) {
+                        int percent = (int) (downloaded * 100 / total);
+                        if (percent != lastPercent) {
+                            lastPercent = percent;
+                            notifyUpdateDownload("downloading", percent, null);
+                        }
+                    }
+                }
+                output.flush();
+                output.close();
+                output = null;
+                input.close();
+                input = null;
+                if (total > 0 && downloaded < total) {
+                    throw new IOException("incomplete download");
+                }
+                pendingUpdateFile = target;
+                target = null;
+                mainHandler.post(this::installPendingUpdate);
+            } catch (Exception e) {
+                if (target != null) {
+                    target.delete();
+                }
+                notifyUpdateDownload("error", 0, e.getMessage());
+            } finally {
+                try {
+                    if (output != null) {
+                        output.close();
+                    }
+                } catch (IOException ignored) {
+                }
+                try {
+                    if (input != null) {
+                        input.close();
+                    }
+                } catch (IOException ignored) {
+                }
+                if (connection != null) {
+                    connection.disconnect();
+                }
+                updateDownloading = false;
+            }
+        }).start();
+    }
+
+    private void notifyUpdateDownload(String status, int percent, @Nullable String message) {
+        mainHandler.post(() -> {
+            if (webView == null) {
+                return;
+            }
+            StringBuilder payload = new StringBuilder("{\"status\":")
+                    .append(JSONObject.quote(status))
+                    .append(",\"percent\":").append(percent);
+            if (message != null) {
+                payload.append(",\"message\":").append(JSONObject.quote(message));
+            }
+            payload.append('}');
+            webView.evaluateJavascript(
+                    "window.__deeplookUpdate && window.__deeplookUpdate('download',"
+                            + payload + ")", null);
+        });
+    }
+
+    private void installPendingUpdate() {
+        File file = pendingUpdateFile;
+        if (file == null || !file.exists()) {
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                && !getPackageManager().canRequestPackageInstalls()) {
+            notifyUpdateDownload("permission", 0, null);
+            try {
+                Intent intent = new Intent(
+                        Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        Uri.parse("package:" + getPackageName()));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+            } catch (ActivityNotFoundException e) {
+                notifyUpdateDownload("error", 0, "cannot open install permission settings");
+            }
+            return;
+        }
+        try {
+            Uri apkUri = FileProvider.getUriForFile(
+                    this, getPackageName() + ".fileprovider", file);
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    | Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            pendingUpdateFile = null;
+            notifyUpdateDownload("installing", 100, null);
+        } catch (Exception e) {
+            notifyUpdateDownload("error", 0, e.getMessage());
+        }
+    }
+
     // ---------------- 下载桥接 ----------------
 
     private File downloadTempFile;
@@ -684,6 +910,11 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         webView.onResume();
+        // 从「安装未知应用」设置页返回后，继续拉起安装器
+        if (pendingUpdateFile != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                && getPackageManager().canRequestPackageInstalls()) {
+            mainHandler.postDelayed(this::installPendingUpdate, 400);
+        }
     }
 
     @Override
@@ -696,4 +927,5 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
     }
 }
+
 

@@ -28,6 +28,19 @@ final class AndroidBridge {
     public void requestMicrophone(String requestId) {
         activity.requestMicrophonePermission(requestId);
     }
+
+    /** 检查 GitHub 最新 Release，结果通过 window.__deeplookUpdate 回调 */
+    @JavascriptInterface
+    public void checkForUpdate() {
+        activity.checkForUpdate();
+    }
+
+    /** 下载 APK 并拉起系统安装器 */
+    @JavascriptInterface
+    public void downloadUpdate(String url, String version) {
+        activity.downloadUpdate(url, version);
+    }
 }
+
 
 

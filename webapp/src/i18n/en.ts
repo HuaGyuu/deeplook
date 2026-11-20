@@ -7,6 +7,11 @@ export const en = {
   collapseSiderbarButton: 'Close sidebar',
   newChat: 'New chat',
   compressContext: 'Compress context',
+  compressConfirmTitle: 'Compress current context?',
+  compressConfirmDescription: 'The current conversation will be summarized into a compact context and a new chat will start from it. The original conversation is kept.',
+  compressConfirmUsage: 'Current context usage: {percent}%.',
+  compressConfirmNote: 'The new chat carries only the summary, so older details may be incomplete. You can still return to the original chat.',
+  compressAndNewChat: 'Compress and start new chat',
   compressing: 'Compressing…',
   contextUsage: 'Context used: {percent}%. Compress to continue.',
   contextFull: 'Context is full. Compress to continue.',
@@ -76,6 +81,16 @@ export const en = {
   aboutFeedback: 'Feedback',
   aboutLicense: 'License',
   aboutTech: 'Tech stack',
+  currentVersion: 'Current version',
+  checkUpdate: 'Check for updates',
+  checkingUpdate: 'Checking…',
+  upToDate: 'You are up to date',
+  newVersionAvailable: 'New version {version} available',
+  downloadAndInstall: 'Download and install',
+  downloadingUpdate: 'Downloading {percent}%',
+  updatePermission: 'Allow installing from unknown sources, then return to continue.',
+  updateInstalling: 'Download complete. Opening installer…',
+  updateFailed: 'Update check failed',
   deleteSessionModalContentTitle: 'Delete chat?',
   deleteSessionWithFilesDescription:
     'This chat and its uploaded files will be permanently deleted and cannot be recovered. Delete this chat?',
@@ -246,6 +261,8 @@ export const en = {
   settingsLocaleZhCN: 'Simplified Chinese',
   settingsLocaleEnUS: 'English',
 } satisfies Record<keyof typeof zh, string>
+
+
 
 
 
