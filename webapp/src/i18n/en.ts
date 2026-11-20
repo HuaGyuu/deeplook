@@ -6,6 +6,20 @@ export const en = {
   expandSiderbarButton: 'Open sidebar',
   collapseSiderbarButton: 'Close sidebar',
   newChat: 'New chat',
+  compressContext: 'Compress context',
+  compressing: 'Compressing…',
+  contextUsage: 'Context used: {percent}%. Compress to continue.',
+  contextFull: 'Context is full. Compress to continue.',
+  contextCompressed: 'Context compressed; new chat started',
+  compressFailed: 'Compression failed. Please retry.',
+  compressedChatTitle: '{title} (compressed)',
+  contextCompressedNotice: 'This chat continues from a compressed context',
+  globalSearchButton: 'Search chats',
+  globalSearchPlaceholder: 'Search all chats',
+  globalSearchHint: 'Type a keyword to search all chat content',
+  globalSearching: 'Searching…',
+  globalSearchResults: '{count} matching chats',
+  globalSearchNoResults: 'No matching chats',
   untitledChat: 'New chat',
   sessionLoading: 'Loading chats...',
   sessionListLoadFailed: 'Unable to load the chat list. Please try again.',
@@ -232,6 +246,9 @@ export const en = {
   settingsLocaleZhCN: 'Simplified Chinese',
   settingsLocaleEnUS: 'English',
 } satisfies Record<keyof typeof zh, string>
+
+
+
 
 
 

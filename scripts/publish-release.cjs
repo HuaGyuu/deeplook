@@ -51,12 +51,14 @@ const releaseNotes = (sha256, sizeMb) => [
   '- 历史导入增加实时进度（百分比 + 进度条），大 ZIP 导入时不再看起来卡住',
   '- 优化历史导入：一次性读取 ZIP 中央目录，解决 74MB 官方包导入时长时间停在 0%',
   '- 应用包名改为 com.huagyuu.deeplook（旧包名数据不自动迁移，可用导出/导入迁移）',
+  '- 新增上下文压缩：顶栏压缩按钮 + 上下文 80%/90%/100% 提示；压缩后用摘要开启新对话',
+  '- 新增全局对话搜索：搜索所有对话标题和内容，结果可跳转',
   '',
   '### 安装',
   `下载下方 \`deeplook-${VERSION}.apk\` 安装（需允许未知来源），首次打开到 **设置 → 数据管理** 填入 DeepSeek API Key。`,
   '',
   '### 说明',
-  `- 版本：${VERSION}（versionCode 13）`,
+  `- 版本：${VERSION}（versionCode 14）`,
   '- 包名：`com.deepseek.chatdemo`',
   `- 大小：${sizeMb} MB`,
   `- SHA-256：\`${sha256}\``,
@@ -142,6 +144,7 @@ const releaseNotes = (sha256, sizeMb) => [
   console.error('FAILED', error.message);
   process.exit(1);
 });
+
 
 
 

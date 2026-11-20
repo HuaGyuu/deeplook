@@ -313,3 +313,10 @@
     line-height: 22px;
   }
 }
+
+.topActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}

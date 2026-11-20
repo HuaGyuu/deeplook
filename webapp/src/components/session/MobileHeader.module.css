@@ -17,3 +17,10 @@
   font: var(--dsw-font-s-strong-14);
   color: var(--dsw-alias-label-primary);
 }
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}

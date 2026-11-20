@@ -568,3 +568,14 @@ export const IconPinOutline16 = () => (
     <path d="M6.2 1.9h3.6l-.6 4.1 2.5 2.1v1.4H9.3v4.6l-.8.9-.8-.9V9.5H4.3V8.1l2.5-2.1-.6-4.1Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
   </svg>
 )
+
+/** 压缩上下文：四角向内收拢 */
+export const IconCompressOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M6 2V6H2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M10 2V6H14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M6 14V10H2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M10 14V10H14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M2.8 2.8L6.2 6.2M13.2 2.8L9.8 6.2M2.8 13.2L6.2 9.8M13.2 13.2L9.8 9.8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+  </svg>
+)

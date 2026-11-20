@@ -114,6 +114,8 @@ export type Session = {
   messages: Message[]
   /** undefined 表示线性消息列表；null 表示空会话。 */
   rootMessageId?: string | null
+  /** 压缩上下文生成的摘要；仅作为后续请求的系统上下文，不显示为普通消息。 */
+  summary?: string
 }
 
 /** 会话列表元数据；消息只在打开会话时加载。 */

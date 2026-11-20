@@ -10,6 +10,8 @@ import {
   useChatStore,
 } from '../services/chat/store.js'
 import { SearchPanel } from '../components/search/SearchPanel.js'
+import { GlobalSearch } from '../components/globalSearch/GlobalSearch.js'
+import { closeGlobalSearch, useGlobalSearch } from '../components/globalSearch/globalSearchState.js'
 import { closeSearchPanel } from '../components/search/searchPanelState.js'
 import { SessionView } from '../components/session/SessionView.js'
 import { MobileHeader } from '../components/session/MobileHeader.js'
@@ -93,6 +95,10 @@ export const App = () => {
   // 供原生返回键调用：设置页 / 移动端抽屉优先关闭，返回 true 表示已消费这次返回
   useEffect(() => {
     const handler = () => {
+      if (useGlobalSearch.getState().open) {
+        closeGlobalSearch()
+        return true
+      }
       if (useSettingsDialog.getState().open) {
         if (handleSettingsBack()) {
           return true
@@ -183,10 +189,12 @@ export const App = () => {
         </main>
         <SearchPanel />
       </div>
+      <GlobalSearch />
       <SettingsDialog />
       <Toast />
     </>
   )
 }
+
 
 

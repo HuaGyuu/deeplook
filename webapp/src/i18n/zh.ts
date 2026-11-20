@@ -4,6 +4,20 @@ export const zh = {
   expandSiderbarButton: '打开边栏',
   collapseSiderbarButton: '收起边栏',
   newChat: '开启新对话',
+  compressContext: '压缩上下文',
+  compressing: '正在压缩…',
+  contextUsage: '上下文已用 {percent}%，建议压缩后继续',
+  contextFull: '上下文已满，建议压缩后继续',
+  contextCompressed: '已压缩上下文并开启新对话',
+  compressFailed: '压缩失败，请重试',
+  compressedChatTitle: '{title}（压缩）',
+  contextCompressedNotice: '本对话基于已压缩的上下文继续',
+  globalSearchButton: '搜索对话',
+  globalSearchPlaceholder: '搜索所有对话',
+  globalSearchHint: '输入关键词搜索所有对话内容',
+  globalSearching: '搜索中…',
+  globalSearchResults: '找到 {count} 个相关对话',
+  globalSearchNoResults: '没有找到相关对话',
   untitledChat: '新对话',
   sessionLoading: '正在加载对话...',
   sessionListLoadFailed: '对话列表加载失败，请重试',
@@ -224,6 +238,9 @@ export const zh = {
   settingsLocaleZhCN: '简体中文',
   settingsLocaleEnUS: 'English',
 } as const
+
+
+
 
 
 

@@ -40,7 +40,7 @@ const SYSTEM_PROMPT = '该助手为DeepSeek，由深度求索公司创造。'
  * 在基础系统提示后追加人设：AI 人设描述助手该怎么表现，用户人设描述用户是谁。
  * 每次请求都会带上，因此每个新对话都会自动注入。
  */
-const buildSystemPrompt = (): string => {
+const buildSystemPrompt = (summary?: string): string => {
   const { userPersona, aiPersona } = useSettings.getState()
   const parts = [SYSTEM_PROMPT]
   const persona: string[] = []
@@ -52,6 +52,9 @@ const buildSystemPrompt = (): string => {
   }
   if (persona.length > 0) {
     parts.push(`请始终遵循以下人设设定：\n${persona.join('\n')}`)
+  }
+  if (summary?.trim()) {
+    parts.push(`以下是此前对话的压缩摘要，请把它视为已经发生的上下文并继续对话：\n${summary.trim()}`)
   }
   return parts.join('\n')
 }
@@ -465,6 +468,28 @@ export const newChat = () => {
     set({ activeId: null })
     trimSessionCache()
   }
+}
+
+/** 用压缩摘要开启一个新会话；摘要只进入请求的 system prompt，不显示为消息。 */
+export const createCompressedSession = (title: string, summary: string): string => {
+  const now = Date.now()
+  const session: Session = {
+    id: createId(),
+    title: title.trim() || '压缩对话',
+    createdAt: now,
+    updatedAt: now,
+    messages: [],
+    rootMessageId: null,
+    summary,
+  }
+  touchSession(session.id)
+  set((state) => ({
+    sessions: sortSessions([toSessionSummary(session), ...state.sessions]),
+    sessionCache: { ...state.sessionCache, [session.id]: session },
+    activeId: session.id,
+  }))
+  persist(session.id)
+  return session.id
 }
 
 export const selectSession = (id: string) => {
@@ -1032,7 +1057,7 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           custom
             ? {
                 model: initial.model ?? getConnection().model,
-                system: buildSystemPrompt(),
+                system: buildSystemPrompt(getSession(sessionId)?.summary),
                 messages,
                 thinking: { type: initial.thinking ? 'enabled' : 'disabled' },
                 tools: [],
@@ -1040,7 +1065,7 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
               }
             : {
                 model: initial.model ?? getConnection().model,
-                system: buildSystemPrompt(),
+                system: buildSystemPrompt(getSession(sessionId)?.summary),
                 messages,
                 thinking: { type: initial.thinking ? 'enabled' : 'disabled' },
                 safety_check: SAFETY_CHECK,
@@ -1132,4 +1157,5 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
     persist(sessionId)
   }
 }
+
 
