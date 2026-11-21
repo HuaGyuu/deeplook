@@ -213,7 +213,12 @@ public class MainActivity extends AppCompatActivity {
                             if (webView.canGoBack()) {
                                 webView.goBack();
                             } else {
-                                finish();
+                                // 和 Home 键一样退到后台：保留 WebView 与页面状态，
+                                // 再次点图标进来是秒回原会话，不会重新加载；
+                                // 真正退出交给最近任务划掉或系统回收。
+                                if (!moveTaskToBack(true)) {
+                                    finish();
+                                }
                             }
                         });
             }
