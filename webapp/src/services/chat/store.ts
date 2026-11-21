@@ -308,6 +308,29 @@ const settleInterrupted = (session: Session): Session => {
   }
 }
 
+/** 上次停留的会话：冷启动（例如按返回键退出后重新点图标）恢复到同一会话 */
+const ACTIVE_SESSION_KEY = 'deeplook-active-session'
+
+const rememberActiveSession = (id: string | null) => {
+  try {
+    if (id === null) {
+      localStorage.removeItem(ACTIVE_SESSION_KEY)
+    } else {
+      localStorage.setItem(ACTIVE_SESSION_KEY, id)
+    }
+  } catch {
+    // 隐私模式等写入失败不影响使用
+  }
+}
+
+const readRememberedSession = (): string | null => {
+  try {
+    return localStorage.getItem(ACTIVE_SESSION_KEY)
+  } catch {
+    return null
+  }
+}
+
 export const initChat = (): Promise<void> => {
   if (get().ready) {
     return Promise.resolve()
@@ -322,6 +345,17 @@ export const initChat = (): Promise<void> => {
       const summaries = await db.loadSessionSummaries()
       if (epoch === historyEpoch) {
         set({ ready: true, sessions: sortSessions(summaries) })
+        // 冷启动时回到上次停留的会话（会话已被删除则保持欢迎页）
+        const remembered = readRememberedSession()
+        if (
+          remembered !== null &&
+          get().activeId === null &&
+          summaries.some((summary) => summary.id === remembered)
+        ) {
+          touchSession(remembered)
+          set({ activeId: remembered })
+          void ensureSessionLoaded(remembered)
+        }
       }
     } catch (error) {
       if (epoch === historyEpoch) {
@@ -446,6 +480,7 @@ export const replaceHistory = async (write: () => Promise<void>): Promise<number
       sessionSaveErrors: {},
       activeId: null,
     })
+    rememberActiveSession(null)
     return summaries.length
   } finally {
     set({ importingHistory: false })
@@ -463,6 +498,7 @@ export const replaceHistory = async (write: () => Promise<void>): Promise<number
 export const newChat = () => {
   if (!get().importingHistory) {
     set({ activeId: null })
+    rememberActiveSession(null)
     trimSessionCache()
   }
 }
@@ -485,6 +521,7 @@ export const createCompressedSession = (title: string, summary: string): string 
     sessionCache: { ...state.sessionCache, [session.id]: session },
     activeId: session.id,
   }))
+  rememberActiveSession(session.id)
   persist(session.id)
   return session.id
 }
@@ -493,6 +530,7 @@ export const selectSession = (id: string) => {
   if (!get().importingHistory && get().sessions.some((session) => session.id === id)) {
     touchSession(id)
     set({ activeId: id })
+    rememberActiveSession(id)
     void ensureSessionLoaded(id)
     trimSessionCache()
   }
@@ -564,6 +602,9 @@ const removeSessionData = async (id: string): Promise<boolean> => {
       ),
       activeId: state.activeId === id ? null : state.activeId,
     }))
+    if (get().activeId === null) {
+      rememberActiveSession(null)
+    }
     return true
   } catch (error) {
     db.reportStorageError('delete session')(error)
@@ -624,6 +665,7 @@ export const sendMessage = (targetSessionId: string | null) => {
       sessionCache: { ...state.sessionCache, [session.id]: session },
       activeId: session.id,
     }))
+    rememberActiveSession(session.id)
   }
   const current = getSession(sessionId)
   if (!current) {
