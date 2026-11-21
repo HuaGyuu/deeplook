@@ -6,4 +6,5 @@
     <color name="system_bar_light">#FFFFFFFF</color>
     <color name="system_bar_dark">#0F1115</color>
     <color name="ic_launcher_background">#FFFFFFFF</color>
+    <color name="splash_hint">#FF6B7280</color>
 </resources>

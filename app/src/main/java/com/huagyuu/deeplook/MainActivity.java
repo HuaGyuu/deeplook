@@ -15,20 +15,28 @@ import android.os.Handler;
 import android.os.Looper;
 import android.provider.MediaStore;
 import android.provider.Settings;
+import android.text.TextUtils;
+import android.util.TypedValue;
 import android.util.Base64;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.ConsoleMessage;
 import android.webkit.CookieManager;
 import android.webkit.PermissionRequest;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
@@ -58,8 +66,12 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 import org.json.JSONObject;
 
@@ -75,7 +87,6 @@ public class MainActivity extends AppCompatActivity {
             "https://appassets.androidplatform.net/assets/web/index.html";
     /** 注入到页面的桥接对象名，供下载拦截脚本回调 */
     private static final String BRIDGE_NAME = "DeepSeekAndroid";
-    private static final String STATE_WEB_VIEW = "webview_state";
 
     private WebView webView;
     private WebViewAssetLoader assetLoader;
@@ -95,6 +106,22 @@ public class MainActivity extends AppCompatActivity {
     private File pendingDownloadFile;
     private String pendingDownloadName;
 
+    /** 启动占位层：加载完成前盖住 WebView，异常时提供重试入口和诊断文字 */
+    private FrameLayout rootView;
+    private LinearLayout splashView;
+    private TextView splashStatus;
+    private boolean pageReady;
+    /** 空白页修复只做一次，避免反复重载 */
+    private boolean repairedOnce;
+    private boolean splashCreated;
+
+    private final Runnable watchdogTask = () -> {
+        if (pageReady) {
+            return;
+        }
+        diag("boot-timeout");
+    };
+
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -113,13 +140,13 @@ public class MainActivity extends AppCompatActivity {
                 .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
                 .build();
 
-        FrameLayout root = new FrameLayout(this);
-        root.setLayoutParams(new ViewGroup.LayoutParams(
+        rootView = new FrameLayout(this);
+        rootView.setLayoutParams(new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        root.setFitsSystemWindows(false);
+        rootView.setFitsSystemWindows(false);
         // 只有状态栏、导航栏与输入法区域留白：键盘弹出时把 WebView 抬起来，避免输入框被遮挡。
         // 使用边到边（decorFitsSystemWindows=false）后系统不会自动 adjustResize，必须自己处理 IME inset。
-        ViewCompat.setOnApplyWindowInsetsListener(root, (view, insets) -> {
+        ViewCompat.setOnApplyWindowInsetsListener(rootView, (view, insets) -> {
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars()
                     | WindowInsetsCompat.Type.displayCutout());
             Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
@@ -127,21 +154,13 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
 
-        webView = new WebView(this);
-        webView.setLayoutParams(new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        webView.setBackgroundColor(ContextCompat.getColor(this, R.color.chat_background));
-        root.addView(webView);
-        setContentView(root);
+        createAndConfigureWebView(false);
+        rootView.addView(webView);
+        buildSplashView();
+        setContentView(rootView);
 
         registerLaunchers();
-        configureWebView();
-
-        if (savedInstanceState != null) {
-            webView.restoreState(savedInstanceState.getBundle(STATE_WEB_VIEW));
-        } else {
-            webView.loadUrl(APP_URL);
-        }
+        loadApp();
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
@@ -276,6 +295,20 @@ public class MainActivity extends AppCompatActivity {
                 null);
     }
 
+    /** 创建并配置 WebView；software=true 时用软件渲染（部分机型硬件渲染会黑屏） */
+    private WebView createAndConfigureWebView(boolean software) {
+        WebView view = new WebView(this);
+        view.setLayoutParams(new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        view.setBackgroundColor(ContextCompat.getColor(this, R.color.chat_background));
+        if (software) {
+            view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        }
+        webView = view;
+        configureWebView();
+        return view;
+    }
+
     private void configureWebView() {
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -308,6 +341,11 @@ public class MainActivity extends AppCompatActivity {
             public WebResourceResponse shouldInterceptRequest(
                     @NonNull WebView view, @NonNull WebResourceRequest request) {
                 WebResourceResponse response = assetLoader.shouldInterceptRequest(request.getUrl());
+                if (response != null) {
+                    // 资源是打包进 APK 的，禁止 WebView 缓存，避免更新后旧页面引用已删除的 hash 文件
+                    response.setResponseHeaders(
+                            Collections.singletonMap("Cache-Control", "no-cache, no-store"));
+                }
                 return response != null ? response : super.shouldInterceptRequest(view, request);
             }
 
@@ -337,6 +375,31 @@ public class MainActivity extends AppCompatActivity {
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
                 injectDownloadBridge();
+                pageReady = true;
+                mainHandler.removeCallbacks(watchdogTask);
+                hideSplash();
+                // 再确认一次真的渲染出了内容：有些机型页面已完成后仍是一整块黑屏
+                mainHandler.postDelayed(() -> verifyRendered(view), 800);
+            }
+
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request,
+                                        WebResourceError error) {
+                if (request.isForMainFrame()) {
+                    pageReady = false;
+                    diag("load-error " + error.getErrorCode() + " " + error.getDescription());
+                }
+            }
+
+            @Override
+            public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                // 渲染进程被系统回收：自己重建 WebView，避免整个应用被杀或停在黑屏
+                diag("renderer-gone crash=" + detail.didCrash());
+                mainHandler.post(() -> {
+                    showSplash(getString(R.string.splash_crashed));
+                    recreateWebView(false);
+                });
+                return true;
             }
         });
 
@@ -942,12 +1005,138 @@ public class MainActivity extends AppCompatActivity {
         mainHandler.post(() -> Toast.makeText(this, text, Toast.LENGTH_LONG).show());
     }
 
-    @Override
-    protected void onSaveInstanceState(@NonNull Bundle outState) {
-        super.onSaveInstanceState(outState);
-        Bundle state = new Bundle();
-        webView.saveState(state);
-        outState.putBundle(STATE_WEB_VIEW, state);
+    /** 加载页面并重新武装启动看门狗 */
+    private void loadApp() {
+        pageReady = false;
+        showSplash(null);
+        mainHandler.removeCallbacks(watchdogTask);
+        mainHandler.postDelayed(watchdogTask, 12000);
+        webView.loadUrl(APP_URL);
+    }
+
+    /** 点重试：普通重载；软件渲染修复过就不再重复 */
+    private void retryLoad() {
+        if (webView == null) {
+            recreateWebView(false);
+            return;
+        }
+        loadApp();
+    }
+
+    /** 销毁当前 WebView 并重建（渲染进程崩溃 / 黑屏修复时用） */
+    private void recreateWebView(boolean software) {
+        pageReady = false;
+        WebView old = webView;
+        webView = null;
+        if (old != null) {
+            old.removeJavascriptInterface(BRIDGE_NAME);
+            rootView.removeView(old);
+            old.destroy();
+        }
+        createAndConfigureWebView(software);
+        rootView.addView(webView, 0);
+        loadApp();
+    }
+
+    /** 页面完成但没渲染出内容时，切软件渲染重载一次 */
+    private void verifyRendered(WebView target) {
+        if (target != webView || webView == null) {
+            return;
+        }
+        webView.evaluateJavascript(
+                "(function(){var r=document.getElementById('root');return r&&r.childElementCount>0?'ok':'empty';})()",
+                value -> {
+                    if (value != null && value.contains("empty")) {
+                        diag("blank-page");
+                        if (!repairedOnce) {
+                            repairedOnce = true;
+                            recreateWebView(true);
+                        }
+                    }
+                });
+    }
+
+    /** 启动占位层：logo + 状态文字，整块可点重试；有异常时显示诊断码 */
+    private void buildSplashView() {
+        float density = getResources().getDisplayMetrics().density;
+        LinearLayout column = new LinearLayout(this);
+        column.setOrientation(LinearLayout.VERTICAL);
+        column.setGravity(Gravity.CENTER);
+        column.setLayoutParams(new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        column.setBackgroundColor(ContextCompat.getColor(this, R.color.chat_background));
+        column.setClickable(true);
+        column.setOnClickListener(v -> retryLoad());
+
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.mipmap.ic_launcher);
+        int size = (int) (88 * density);
+        LinearLayout.LayoutParams logoParams = new LinearLayout.LayoutParams(size, size);
+        column.addView(logo, logoParams);
+
+        TextView title = new TextView(this);
+        title.setText(R.string.app_name);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
+        title.setTextColor(ContextCompat.getColor(this, R.color.brand_primary));
+        title.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        titleParams.topMargin = (int) (16 * density);
+        column.addView(title, titleParams);
+
+        splashStatus = new TextView(this);
+        splashStatus.setText(R.string.splash_starting);
+        splashStatus.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        splashStatus.setTextColor(ContextCompat.getColor(this, R.color.splash_hint));
+        splashStatus.setGravity(Gravity.CENTER);
+        splashStatus.setMaxLines(4);
+        splashStatus.setPadding((int) (24 * density), 0, (int) (24 * density), 0);
+        LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        statusParams.topMargin = (int) (10 * density);
+        column.addView(splashStatus, statusParams);
+
+        splashView = column;
+        splashCreated = true;
+        rootView.addView(splashView);
+    }
+
+    private void showSplash(@Nullable String status) {
+        if (!splashCreated || splashView == null) {
+            return;
+        }
+        splashView.setVisibility(View.VISIBLE);
+        if (status != null) {
+            splashStatus.setText(status);
+        }
+    }
+
+    private void hideSplash() {
+        if (!splashCreated || splashView == null) {
+            return;
+        }
+        splashView.setVisibility(View.GONE);
+    }
+
+    /** 记录启动异常，并把最近一条显示在启动层上，方便用户截图反馈 */
+    private void diag(String message) {
+        try {
+            File file = new File(getCacheDir(), "deeplook-diag.log");
+            if (file.length() > 64 * 1024) {
+                file.delete();
+            }
+            String line = new SimpleDateFormat("MM-dd HH:mm:ss", Locale.US).format(new Date())
+                    + " " + message + "\n";
+            try (FileOutputStream out = new FileOutputStream(file, true)) {
+                out.write(line.getBytes(StandardCharsets.UTF_8));
+            }
+        } catch (IOException ignored) {
+            // 诊断日志写不了不影响启动
+        }
+        if (splashCreated && splashView != null) {
+            splashView.setVisibility(View.VISIBLE);
+            splashStatus.setText(getString(R.string.splash_diag, message));
+        }
     }
 
     @Override
@@ -977,5 +1166,6 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
     }
 }
+
 
 
