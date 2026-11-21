@@ -22,6 +22,7 @@ import { Modal } from '../base/Modal.js'
 import { showToast } from '../base/toastState.js'
 import { openSettings } from '../settings/settingsDialogState.js'
 import { closeMobileSider, useMobileSider } from './mobileSiderState.js'
+import { LOGO_DATA_URL } from '../../assets/logoData.js'
 import { BalanceCard } from './BalanceCard.js'
 import { SessionItem } from './SessionItem.js'
 import styles from './Sider.module.css'
@@ -143,7 +144,10 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
   return (
     <div className={clsx(styles.sider, mobile && styles.mobile)}>
       <div className={styles.top}>
-        <div className={styles.appName}>{t('appName')}</div>
+        <div className={styles.brand}>
+          <img className={styles.brandLogo} src={LOGO_DATA_URL} alt="" aria-hidden="true" />
+          <div className={styles.appName}>{t('appName')}</div>
+        </div>
         <div className={styles.topActions}>
           <IconButton
             size="m"
@@ -360,3 +364,4 @@ export const MobileSider = () => {
     </>
   )
 }
+

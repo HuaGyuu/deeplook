@@ -23,9 +23,26 @@
   flex-shrink: 0;
 }
 
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding-left: 2px;
+}
+
+.brandLogo {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
+}
+
 .appName {
   min-width: 0;
-  padding-left: 4px;
+  padding-left: 0;
   overflow: hidden;
   font-size: 20px;
   line-height: 22px;
@@ -379,6 +396,7 @@
     background-color: var(--dsw-specific-sidebar-nav-item-hover);
   }
 }
+
 
 
 
