@@ -50,7 +50,8 @@ type OpenAiMessage = {
 
 /** 应用内部消息 → OpenAI messages（历史思考块与工具块丢弃，只保留正文） */
 const toOpenAiMessages = (body: CreateMessageRequest): OpenAiMessage[] => {
-  const messages: OpenAiMessage[] = [{ role: 'system', content: body.system }]
+  // 没有系统提示时不下发 system 消息，避免空内容被服务端拒绝
+  const messages: OpenAiMessage[] = body.system ? [{ role: 'system', content: body.system }] : []
   for (const message of body.messages) {
     if (message.role === 'latest_reminder') {
       // DeepSeek 专属角色，自定义模型不支持：并入下一条用户消息更贴近原意，这里直接跳过

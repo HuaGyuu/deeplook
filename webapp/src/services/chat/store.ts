@@ -33,16 +33,13 @@ import {
   type UserMessage,
 } from './types.js'
 
-/** 所有生成请求统一携带的助手身份说明 */
-const SYSTEM_PROMPT = '该助手为DeepSeek，由深度求索公司创造。'
-
 /**
- * 在基础系统提示后追加人设：AI 人设描述助手该怎么表现，用户人设描述用户是谁。
- * 每次请求都会带上，因此每个新对话都会自动注入。
+ * 系统提示只放人设与压缩摘要，不再固定声明助手身份；
+ * 两者都没有时返回空串，请求里也不带 system 字段。
  */
 const buildSystemPrompt = (summary?: string): string => {
   const { userPersona, aiPersona } = useSettings.getState()
-  const parts = [SYSTEM_PROMPT]
+  const parts: string[] = []
   const persona: string[] = []
   if (aiPersona.trim()) {
     persona.push(`AI 人设：${aiPersona.trim()}`)
@@ -1052,12 +1049,15 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
         // 自定义模型走 OpenAI 兼容协议：服务端没有 DeepSeek 的联网搜索、安全审核与自动标题扩展，
         // 只保留模型、系统提示与消息；标题在发送时已按首条消息本地生成。
         const custom = getConnection().protocol !== PROTOCOL_ANTHROPIC
+        // 没有人设与压缩摘要时不发送 system 字段，避免出现空的系统提示
+        const system = buildSystemPrompt(getSession(sessionId)?.summary)
+        const systemField = system ? { system } : {}
         const events = streamMessage(
           useSettings.getState().apiKey ?? '',
           custom
             ? {
                 model: initial.model ?? getConnection().model,
-                system: buildSystemPrompt(getSession(sessionId)?.summary),
+                ...systemField,
                 messages,
                 thinking: { type: initial.thinking ? 'enabled' : 'disabled' },
                 tools: [],
@@ -1065,7 +1065,7 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
               }
             : {
                 model: initial.model ?? getConnection().model,
-                system: buildSystemPrompt(getSession(sessionId)?.summary),
+                ...systemField,
                 messages,
                 thinking: { type: initial.thinking ? 'enabled' : 'disabled' },
                 safety_check: SAFETY_CHECK,

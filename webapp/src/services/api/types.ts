@@ -175,7 +175,8 @@ export type DeepseekReadUrlTool = {
 export type CreateMessageRequest = {
   /** 预设模型名或自定义模型名（自定义服务商时由连接配置覆盖） */
   model: ChatModel | string
-  system: string
+  /** 系统提示；没有人设或压缩摘要时省略该字段 */
+  system?: string
   messages: MessageParam[]
   thinking: { type: 'enabled' | 'disabled' }
   tools: (DeepseekWebSearchTool | DeepseekReadUrlTool)[]
@@ -259,3 +260,4 @@ export type ApiErrorBody = {
     code?: string | null
   }
 }
+
