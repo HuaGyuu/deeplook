@@ -88,6 +88,9 @@ public class MainActivity extends AppCompatActivity {
     /** 注入到页面的桥接对象名，供下载拦截脚本回调 */
     private static final String BRIDGE_NAME = "DeepSeekAndroid";
 
+    /** 调试构建才显示启动层、加载进度与诊断信息；正式版保持干净的启动体验 */
+    private static final boolean DIAG_BUILD = BuildConfig.DEBUG;
+
     private WebView webView;
     private WebViewAssetLoader assetLoader;
     private ValueCallback<Uri[]> fileCallback;
@@ -194,7 +197,9 @@ public class MainActivity extends AppCompatActivity {
                 .getBoolean("software", false);
         createAndConfigureWebView(compatSoftware);
         rootView.addView(webView);
-        buildSplashView();
+        if (DIAG_BUILD) {
+            buildSplashView();
+        }
         setContentView(rootView);
 
         registerLaunchers();
@@ -1083,7 +1088,7 @@ public class MainActivity extends AppCompatActivity {
         loadProgress = 0;
         showSplash(null);
         mainHandler.removeCallbacks(watchdogTask);
-        mainHandler.postDelayed(watchdogTask, 5000);
+        mainHandler.postDelayed(watchdogTask, DIAG_BUILD ? 5000 : 15000);
         webView.loadUrl(bootUrl());
     }
 
@@ -1250,6 +1255,9 @@ public class MainActivity extends AppCompatActivity {
 
     /** 记录启动异常，并把最近一条显示在启动层上，方便用户截图反馈 */
     private void diag(String message) {
+        if (!DIAG_BUILD) {
+            return;
+        }
         try {
             File file = new File(getCacheDir(), "deeplook-diag.log");
             if (file.length() > 64 * 1024) {

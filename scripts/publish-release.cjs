@@ -1,5 +1,5 @@
 // 用 GitHub REST API 配置仓库信息并发布 release（token 从环境变量 GH_TOKEN 读取，不打印）
-// 用法：GH_TOKEN=... node scripts/publish-release.cjs dist/deeplook-1.4.2.apk v1.4.2
+// 用法：GH_TOKEN=... node scripts/publish-release.cjs dist/deeplook-1.4.2.apk v1.4.2 [dist/deeplook-1.4.2-diag.apk]
 const fs = require('node:fs');
 const crypto = require('node:crypto');
 const path = require('node:path');
@@ -7,6 +7,7 @@ const path = require('node:path');
 const OWNER = 'HuaGyuu';
 const REPO = 'deeplook';
 const APK = process.argv[2];
+const DIAG_APK = process.argv[4] && fs.existsSync(process.argv[4]) ? process.argv[4] : null;
 const TAG = process.argv[3] || process.env.RELEASE_TAG || 'v1.4.2';
 const VERSION = TAG.replace(/^v/, '');
 const TOKEN = process.env.GH_TOKEN;
@@ -78,6 +79,9 @@ const releaseNotes = (sha256, sizeMb) => {
     '',
     '### 安装',
     `下载下方 \`deeplook-${VERSION}.apk\` 安装（需允许未知来源），首次打开到 **设置 → 数据管理** 填入 DeepSeek API Key。`,
+    ...(DIAG_APK
+      ? ['', `> 排查问题用的调试版：\`deeplook-${VERSION}-diag.apk\`（启动时会显示加载进度与诊断信息，功能与正式版一致）。`]
+      : []),
     '',
     '### 说明',
     `- 版本：${versionName}（versionCode ${versionCode}）`,
@@ -163,6 +167,29 @@ const releaseNotes = (sha256, sizeMb) => {
   const uploaded = await upload.json();
   console.log('asset:', upload.status, uploaded.browser_download_url, `${sizeMb} MB`);
   console.log('sha256:', sha256);
+
+  // 调试版 APK（可选）：单独资产，便于让用户装同一个版本抓启动信息
+  if (DIAG_APK) {
+    const diagBuffer = fs.readFileSync(DIAG_APK);
+    const diagSha = crypto.createHash('sha256').update(diagBuffer).digest('hex');
+    const diagSizeMb = (diagBuffer.length / 1048576).toFixed(2);
+    const diagName = `deeplook-${VERSION}-diag.apk`;
+    const diagExisting = assets.json?.find?.((item) => item.name === diagName);
+    if (diagExisting) {
+      await api(`/repos/${OWNER}/${REPO}/releases/assets/${diagExisting.id}`, { method: 'DELETE' });
+    }
+    const diagUpload = await fetch(
+      `https://uploads.github.com/repos/${OWNER}/${REPO}/releases/${release.json.id}/assets?name=${encodeURIComponent(diagName)}`,
+      {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/vnd.android.package-archive' },
+        body: diagBuffer,
+      }
+    );
+    const diagUploaded = await diagUpload.json();
+    console.log('diag asset:', diagUpload.status, diagUploaded.browser_download_url, `${diagSizeMb} MB`);
+    console.log('diag sha256:', diagSha);
+  }
 })().catch((error) => {
   console.error('FAILED', error.message);
   process.exit(1);
