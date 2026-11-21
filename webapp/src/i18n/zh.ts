@@ -39,6 +39,7 @@ export const zh = {
   tokenUsageCacheWrite: '写入缓存',
   tokenUsageUncached: '未命中输入',
   tokenUsageOutput: '输出',
+  tokenUsageHitRate: '缓存命中率',
   tokenUsageTotal: '合计',
   tokenUsageNote: '输入包含系统提示、工具声明与本轮上下文；缓存命中部分通常按更低价计费。',
   tokenUsageTitle: '输入 {input} tokens（缓存命中 {cached}）· 输出 {output} tokens',
@@ -282,6 +283,7 @@ export const zh = {
   settingsLocaleZhCN: '简体中文',
   settingsLocaleEnUS: 'English',
 } as const
+
 
 
 

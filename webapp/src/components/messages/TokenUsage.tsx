@@ -74,6 +74,8 @@ export const TokenUsage = ({ usage }: { usage?: MessageUsage }) => {
   const uncached = usage.input_tokens
   const input = uncached + written + cached
   const output = usage.output_tokens
+  // 缓存命中率：命中部分占全部输入的比例
+  const hitRate = input > 0 ? Math.round((cached / input) * 100) : 0
   if (input <= 0 && output <= 0) {
     return null
   }
@@ -122,6 +124,10 @@ export const TokenUsage = ({ usage }: { usage?: MessageUsage }) => {
                   <dt>{t('tokenUsageTotal')}</dt>
                   <dd>{formatNumber(input + output)}</dd>
                 </div>
+                <div className={styles.row}>
+                  <dt>{t('tokenUsageHitRate')}</dt>
+                  <dd>{`${hitRate}%`}</dd>
+                </div>
               </dl>
               <p className={styles.popoverNote}>{t('tokenUsageNote')}</p>
             </div>,
@@ -131,3 +137,4 @@ export const TokenUsage = ({ usage }: { usage?: MessageUsage }) => {
     </>
   )
 }
+

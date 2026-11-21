@@ -42,6 +42,7 @@ export const en = {
   tokenUsageCacheWrite: 'Cache write',
   tokenUsageUncached: 'Uncached input',
   tokenUsageOutput: 'Output',
+  tokenUsageHitRate: 'Cache hit rate',
   tokenUsageTotal: 'Total',
   tokenUsageNote: 'Input covers the system prompt, tool declarations and this round context; cached input is usually billed at a lower rate.',
   tokenUsageTitle: 'Input {input} tokens (cached {cached}) · output {output} tokens',
@@ -290,6 +291,7 @@ export const en = {
   settingsLocaleZhCN: 'Simplified Chinese',
   settingsLocaleEnUS: 'English',
 } satisfies Record<keyof typeof zh, string>
+
 
 
 
