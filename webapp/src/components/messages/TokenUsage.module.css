@@ -1,11 +1,82 @@
 .usage {
+  padding: 0;
+  border: 0;
+  background: none;
   color: var(--dsw-alias-label-tertiary);
+  font: inherit;
   font-size: 11px;
   line-height: 16px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  cursor: pointer;
   user-select: none;
-  cursor: default;
+
+  &:hover {
+    color: var(--dsw-alias-label-secondary);
+    text-decoration: underline;
+  }
+}
+
+.popover {
+  position: fixed;
+  z-index: 1200;
+  box-sizing: border-box;
+  width: 212px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.popoverTitle {
+  margin-bottom: 8px;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+
+  dt {
+    margin: 0;
+    color: var(--dsw-alias-label-secondary);
+    font-weight: 400;
+  }
+
+  dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+    color: var(--dsw-alias-label-primary);
+  }
+}
+
+.totalRow {
+  margin-top: 2px;
+  padding-top: 6px;
+  border-top: 1px solid var(--dsw-alias-border-l1);
+  font-weight: 600;
+}
+
+.popoverNote {
+  margin: 8px 0 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
 }
 
 @media not all and (min-width: 768px) {

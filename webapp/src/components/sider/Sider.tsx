@@ -157,40 +157,43 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
         {t('newChat')}
       </button>
       <BalanceCard />
-      <div className={styles.listToolbar}>
-        {selecting ? (
-          <>
-            <span className={styles.selectedCount}>{t('selectedCount', { count: selectedIds.size })}</span>
-            <button type="button" className={styles.toolbarAction} onClick={toggleSelectAll}>
-              {allSelected ? t('clearSelection') : t('selectAll')}
-            </button>
-            <button type="button" className={styles.toolbarAction} onClick={exitSelect}>
-              {t('cancel')}
-            </button>
-            <Button
-              variant="danger"
-              size="s"
-              disabled={selectedIds.size === 0 || bulkDeleting}
-              onClick={() => setBulkConfirm(true)}
-            >
-              {t(bulkDeleting ? 'deletingSessions' : 'delete')}
-            </Button>
-          </>
-        ) : (
-          <IconButton
-            size="m"
-            icon={<IconSelectOutline16 />}
-            tooltip={t('selectSessions')}
-            tooltipPlacement="bottom"
-            onClick={() => setSelecting(true)}
-          />
-        )}
-      </div>
       <div className={styles.listWrap}>
         <div className={styles.list}>
-          {groups.map((group) => (
+          {selecting ? (
+            <div className={styles.selectBar}>
+              <span className={styles.selectedCount}>
+                {t('selectedCount', { count: selectedIds.size })}
+              </span>
+              <button type="button" className={styles.toolbarAction} onClick={toggleSelectAll}>
+                {allSelected ? t('clearSelection') : t('selectAll')}
+              </button>
+              <button type="button" className={styles.toolbarAction} onClick={exitSelect}>
+                {t('cancel')}
+              </button>
+              <Button
+                variant="danger"
+                size="s"
+                disabled={selectedIds.size === 0 || bulkDeleting}
+                onClick={() => setBulkConfirm(true)}
+              >
+                {t(bulkDeleting ? 'deletingSessions' : 'delete')}
+              </Button>
+            </div>
+          ) : null}
+          {groups.map((group, index) => (
             <div key={group.key} className={styles.section}>
-              <div className={styles.sectionHeader}>{group.label}</div>
+              <div className={styles.sectionHeader}>
+                <span className={styles.sectionLabel}>{group.label}</span>
+                {index === 0 && !selecting ? (
+                  <IconButton
+                    size="xs"
+                    icon={<IconSelectOutline16 />}
+                    tooltip={t('selectSessions')}
+                    tooltipPlacement="bottom"
+                    onClick={() => setSelecting(true)}
+                  />
+                ) : null}
+              </div>
               {group.sessions.map((session) => (
                 <SessionItem
                   key={session.id}

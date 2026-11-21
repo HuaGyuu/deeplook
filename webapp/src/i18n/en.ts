@@ -36,6 +36,14 @@ export const en = {
   sessionDeleteFailed: 'Unable to delete this chat. Please try again.',
   settings: 'Settings',
   tokenUsage: '{input} in · {output} out',
+  tokenUsageDetailHint: 'Tap to see token details',
+  tokenUsageDetailTitle: 'Token details for this round',
+  tokenUsageCached: 'Cache hit',
+  tokenUsageCacheWrite: 'Cache write',
+  tokenUsageUncached: 'Uncached input',
+  tokenUsageOutput: 'Output',
+  tokenUsageTotal: 'Total',
+  tokenUsageNote: 'Input covers the system prompt, tool declarations and this round context; cached input is usually billed at a lower rate.',
   tokenUsageTitle: 'Input {input} tokens (cached {cached}) · output {output} tokens',
   selectSessions: 'Select',
   selectedCount: '{count} selected',
@@ -282,6 +290,7 @@ export const en = {
   settingsLocaleZhCN: 'Simplified Chinese',
   settingsLocaleEnUS: 'English',
 } satisfies Record<keyof typeof zh, string>
+
 
 
 
