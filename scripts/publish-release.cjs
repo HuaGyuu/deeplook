@@ -35,7 +35,7 @@ const api = async (path, options = {}) => {
 };
 
 const releaseNotes = (sha256, sizeMb) => [
-  `## deeplook ${TAG}`,
+  `## DeepLook ${TAG}`,
   '',
   '基于 DeepSeek 官方 API 的安卓聊天客户端（WebView + React/TypeScript）。',
   '',
@@ -55,13 +55,17 @@ const releaseNotes = (sha256, sizeMb) => [
   '- 新增全局对话搜索：搜索所有对话标题和内容，结果可跳转',
   '- 压缩前增加确认说明；搜索支持同一对话多个匹配项并跳转高亮命中消息',
   '- 关于页新增检查更新，可下载并安装 GitHub 最新 APK',
+  '- 应用更名为 DeepLook，侧边栏与关于页同步更新',
+  '- 更换为蓝色小鱼应用图标，新对话欢迎页显示应用图标',
+  '- 压缩确认弹窗补充「为什么压缩」和压缩效果说明',
+  '- 关于页「问题反馈」改为「联系作者」，点击显示微信二维码',
   '',
   '### 安装',
   `下载下方 \`deeplook-${VERSION}.apk\` 安装（需允许未知来源），首次打开到 **设置 → 数据管理** 填入 DeepSeek API Key。`,
   '',
   '### 说明',
-  `- 版本：${VERSION}（versionCode 15）`,
-  '- 包名：`com.deepseek.chatdemo`',
+  `- 版本：${VERSION}（versionCode 16）`,
+  '- 包名：`com.huagyuu.deeplook`',
   `- 大小：${sizeMb} MB`,
   `- SHA-256：\`${sha256}\``,
   '- Release APK 使用 debug 签名，便于直接安装体验；上架请自行替换正式签名。',
@@ -78,7 +82,7 @@ const releaseNotes = (sha256, sizeMb) => [
   const patch = await api(`/repos/${OWNER}/${REPO}`, {
     method: 'PATCH',
     body: JSON.stringify({
-      description: 'deeplook — 基于 DeepSeek 官方 API 的 Android 聊天客户端（WebView + React/TypeScript）',
+      description: 'DeepLook — 基于 DeepSeek 官方 API 的 Android 聊天客户端（WebView + React/TypeScript）',
       homepage: `https://github.com/${OWNER}/${REPO}`,
       has_issues: true,
       has_wiki: false,
@@ -105,7 +109,7 @@ const releaseNotes = (sha256, sizeMb) => [
       body: JSON.stringify({
         tag_name: TAG,
         target_commitish: 'main',
-        name: `deeplook ${TAG}`,
+        name: `DeepLook ${TAG}`,
         body,
         draft: false,
         prerelease: false,
@@ -115,7 +119,7 @@ const releaseNotes = (sha256, sizeMb) => [
   } else if (release.status === 200) {
     release = await api(`/repos/${OWNER}/${REPO}/releases/${release.json.id}`, {
       method: 'PATCH',
-      body: JSON.stringify({ name: `deeplook ${TAG}`, body, make_latest: 'true' }),
+      body: JSON.stringify({ name: `DeepLook ${TAG}`, body, make_latest: 'true' }),
     });
   }
   if (!release.json?.id) {
@@ -146,6 +150,7 @@ const releaseNotes = (sha256, sizeMb) => [
   console.error('FAILED', error.message);
   process.exit(1);
 });
+
 
 
 

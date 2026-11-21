@@ -5,6 +5,16 @@ declare module '*.module.css' {
 
 declare module '*.css' {}
 
+declare module '*.png' {
+  const src: string
+  export default src
+}
+
+declare module '*.jpg' {
+  const src: string
+  export default src
+}
+
 /** 公开 API 的地址，见 rspack.config.ts 的 createConfig */
 declare const __API_ORIGIN__: string
 
@@ -13,3 +23,4 @@ declare module 'prismjs/components/*' {}
 
 /** KaTeX 化学公式扩展通过副作用注册到 KaTeX */
 declare module 'katex/contrib/mhchem' {}
+

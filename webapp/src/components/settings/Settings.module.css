@@ -915,11 +915,38 @@
 }
 
 .aboutLink {
+  padding: 0;
+  border: 0;
+  background: none;
   color: var(--dsw-alias-brand-text);
+  font: inherit;
   text-decoration: none;
+  cursor: pointer;
 
   &:hover {
     text-decoration: underline;
+  }
+}
+
+.contactQr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+
+  img {
+    display: block;
+    width: min(260px, 68vw);
+    height: auto;
+    border-radius: 12px;
+  }
+
+  p {
+    margin: 0;
+    color: var(--dsw-alias-label-tertiary);
+    font-size: 12px;
+    line-height: 18px;
   }
 }
 
@@ -962,3 +989,4 @@
   background-color: var(--dsw-alias-brand-primary);
   transition: width 0.2s ease;
 }
+

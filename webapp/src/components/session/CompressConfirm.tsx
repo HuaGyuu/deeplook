@@ -68,7 +68,11 @@ export const useCompressConfirm = (session: Session, disabled = false) => {
     >
       <div className={styles.description}>{t('compressConfirmDescription')}</div>
       <div className={styles.usage}>{t('compressConfirmUsage', { percent })}</div>
-      <div className={styles.note}>{t('compressConfirmNote')}</div>
+      <div className={styles.why}>
+        <strong>{t('compressConfirmWhyTitle')}</strong>
+        {t('compressConfirmWhy')}
+      </div>
+      <div className={styles.note}>{t('compressConfirmEffect')}</div>
     </Modal>
   ) : null
 

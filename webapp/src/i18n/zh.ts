@@ -8,7 +8,9 @@ export const zh = {
   compressConfirmTitle: '压缩当前上下文？',
   compressConfirmDescription: '将当前对话总结成一段压缩摘要，并用它开启一个新对话。原对话会保留，不会被删除。',
   compressConfirmUsage: '当前上下文已用 {percent}%。',
-  compressConfirmNote: '新对话只携带摘要，较早的细节可能不完整；压缩后你仍可以回到原对话查看。',
+  compressConfirmWhyTitle: '为什么需要压缩？',
+  compressConfirmWhy: '对话越长，发送给模型的上下文就越大。接近上限时继续提问可能变慢或直接失败；压缩会把关键信息保留下来，同时降低上下文长度，让对话能继续。',
+  compressConfirmEffect: '效果：原对话不会被修改；新对话从摘要继续，较早的细节可能不完整，需要时仍可回到原对话查看。',
   compressAndNewChat: '压缩并开启新对话',
   compressing: '正在压缩…',
   contextUsage: '上下文已用 {percent}%，建议压缩后继续',
@@ -30,7 +32,7 @@ export const zh = {
   sessionSaveFailed: '对话或附件尚未保存到本机，关闭页面可能丢失，请重试',
   sessionDeleteFailed: '删除对话失败，请重试',
   settings: '设置',
-  appName: 'deeplook',
+  appName: 'DeepLook',
   settingsGroupAccount: '账户',
   settingsGroupApp: '应用',
   settingsGroupVoice: '语音',
@@ -40,7 +42,7 @@ export const zh = {
   personalization: '个性化',
   appearance: '外观',
   language: '语言',
-  aboutApp: '关于 deeplook',
+  aboutApp: '关于 DeepLook',
   apiKeyStatusSet: '已设置',
   apiKeyStatusUnset: '未设置',
   valueSet: '已设置',
@@ -72,10 +74,14 @@ export const zh = {
   chatBackgroundFailed: '图片处理失败，请换一张图片重试',
   uploadImage: '上传图片',
   settingsVersion: '版本',
-  aboutDescription: 'deeplook 是一个基于 DeepSeek 官方 API 的聊天客户端。',
+  aboutDescription: 'DeepLook 是一个基于 DeepSeek 官方 API 的聊天客户端。',
   aboutAuthor: '作者',
   aboutGithub: 'GitHub',
   aboutFeedback: '问题反馈',
+  aboutContact: '联系作者',
+  contactAuthor: '联系作者',
+  contactAuthorHint: '微信扫码联系作者',
+  contactQrAlt: '作者微信二维码',
   aboutLicense: '开源协议',
   aboutTech: '技术栈',
   currentVersion: '当前版本',
@@ -253,6 +259,9 @@ export const zh = {
   settingsLocaleZhCN: '简体中文',
   settingsLocaleEnUS: 'English',
 } as const
+
+
+
 
 
 

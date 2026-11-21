@@ -1,4 +1,4 @@
-# deeplook
+# DeepLook
 
 [![Release](https://img.shields.io/github/v/release/HuaGyuu/deeplook?include_prereleases&sort=semver)](https://github.com/HuaGyuu/deeplook/releases)
 [![License](https://img.shields.io/github/license/HuaGyuu/deeplook)](LICENSE)
@@ -122,6 +122,9 @@ deeplook/
 [MIT](LICENSE) © 2026 HuaGyuu
 
 网页层来自 deepseek-ai/deepseek-chat-demo（MIT），其许可证见 `webapp/LICENSE` 与 `app/src/main/assets/web/LICENSE`，第三方说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+
+
 
 
 

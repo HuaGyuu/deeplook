@@ -23,3 +23,20 @@
   justify-content: flex-end;
   gap: 8px;
 }
+
+.why {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 19px;
+}
+
+.why strong {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--dsw-alias-label-primary);
+  font-weight: 500;
+}

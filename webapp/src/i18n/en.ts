@@ -10,7 +10,9 @@ export const en = {
   compressConfirmTitle: 'Compress current context?',
   compressConfirmDescription: 'The current conversation will be summarized into a compact context and a new chat will start from it. The original conversation is kept.',
   compressConfirmUsage: 'Current context usage: {percent}%.',
-  compressConfirmNote: 'The new chat carries only the summary, so older details may be incomplete. You can still return to the original chat.',
+  compressConfirmWhyTitle: 'Why compress?',
+  compressConfirmWhy: 'The longer the conversation, the larger the context sent to the model. Near the limit, replies can become slow or fail. Compression keeps the key information while reducing context length so you can continue.',
+  compressConfirmEffect: 'Effect: the original conversation is unchanged. The new chat continues from the summary, so older details may be incomplete; you can always return to the original.',
   compressAndNewChat: 'Compress and start new chat',
   compressing: 'Compressing…',
   contextUsage: 'Context used: {percent}%. Compress to continue.',
@@ -33,7 +35,7 @@ export const en = {
     'Chats or attachments have not been saved locally. Retry before closing this page.',
   sessionDeleteFailed: 'Unable to delete this chat. Please try again.',
   settings: 'Settings',
-  appName: 'deeplook',
+  appName: 'DeepLook',
   settingsGroupAccount: 'Account',
   settingsGroupApp: 'App',
   settingsGroupVoice: 'Voice',
@@ -43,7 +45,7 @@ export const en = {
   personalization: 'Personalization',
   appearance: 'Appearance',
   language: 'Language',
-  aboutApp: 'About deeplook',
+  aboutApp: 'About DeepLook',
   apiKeyStatusSet: 'Set',
   apiKeyStatusUnset: 'Not set',
   valueSet: 'Set',
@@ -75,10 +77,14 @@ export const en = {
   chatBackgroundFailed: 'Failed to process the image. Please try another one.',
   uploadImage: 'Upload image',
   settingsVersion: 'Version',
-  aboutDescription: 'deeplook is a chat client powered by the official DeepSeek API.',
+  aboutDescription: 'DeepLook is a chat client powered by the official DeepSeek API.',
   aboutAuthor: 'Author',
   aboutGithub: 'GitHub',
   aboutFeedback: 'Feedback',
+  aboutContact: 'Contact author',
+  contactAuthor: 'Contact author',
+  contactAuthorHint: 'Scan the WeChat QR code to contact the author',
+  contactQrAlt: 'Author WeChat QR code',
   aboutLicense: 'License',
   aboutTech: 'Tech stack',
   currentVersion: 'Current version',
@@ -261,6 +267,9 @@ export const en = {
   settingsLocaleZhCN: 'Simplified Chinese',
   settingsLocaleEnUS: 'English',
 } satisfies Record<keyof typeof zh, string>
+
+
+
 
 
 

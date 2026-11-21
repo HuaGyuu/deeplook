@@ -24,6 +24,7 @@ import {
 import { useIsMobile } from '../../app/viewport.js'
 import { APP_VERSION } from '../../services/appVersion.js'
 import { UpdateChecker } from './UpdateChecker.js'
+import { WECHAT_QR_DATA_URL } from '../../assets/wechatQrData.js'
 import { useChatStore } from '../../services/chat/store.js'
 import { regionCodes, getRegionName, provinces } from '../../services/location.js'
 import {
@@ -734,9 +735,10 @@ const RangeSlider = ({
 )
 const AboutApp = () => {
   const t = useTranslate()
+  const [contactOpen, setContactOpen] = useState(false)
   return (
     <div className={styles.about}>
-      <div className={styles.aboutName}>deeplook</div>
+      <div className={styles.aboutName}>DeepLook</div>
       <div className={styles.aboutVersion}>
         {t('settingsVersion')} {APP_VERSION}
       </div>
@@ -758,15 +760,14 @@ const AboutApp = () => {
           </a>
         </div>
         <div className={styles.aboutRow}>
-          <span>{t('aboutFeedback')}</span>
-          <a
+          <span>{t('aboutContact')}</span>
+          <button
+            type="button"
             className={styles.aboutLink}
-            href="https://github.com/HuaGyuu/deeplook/issues"
-            target="_blank"
-            rel="noreferrer"
+            onClick={() => setContactOpen(true)}
           >
-            GitHub Issues
-          </a>
+            {t('contactAuthor')}
+          </button>
         </div>
         <div className={styles.aboutRow}>
           <span>{t('aboutLicense')}</span>
@@ -778,6 +779,23 @@ const AboutApp = () => {
         </div>
       </div>
       <UpdateChecker />
+      {contactOpen ? (
+        <Modal
+          title={t('contactAuthor')}
+          closable
+          onClose={() => setContactOpen(false)}
+          footer={
+            <Button variant="outlined" size="m" onClick={() => setContactOpen(false)}>
+              {t('close')}
+            </Button>
+          }
+        >
+          <div className={styles.contactQr}>
+            <img src={WECHAT_QR_DATA_URL} alt={t('contactQrAlt')} />
+            <p>{t('contactAuthorHint')}</p>
+          </div>
+        </Modal>
+      ) : null}
     </div>
   )
 }
@@ -1236,6 +1254,8 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
     />
   )
 }
+
+
 
 
 

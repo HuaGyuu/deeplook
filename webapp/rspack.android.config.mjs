@@ -44,7 +44,7 @@ export default {
     generator: { 'css/module': { localIdentName: '[local]-[hash:6]' } },
     rules: [
       { test: /\.module\.css$/, type: 'css/module', use: [cssLoader] },
-      { test: /\.css$/, exclude: /\.module\.css$/, use: [cssLoader] },
+      { test: /\.css$/, exclude: /\.module\.css$/, type: 'css', use: [cssLoader] },
       {
         test: /\.(j|t)sx?$/,
         exclude: /[\\/]node_modules[\\/]/,
@@ -72,3 +72,5 @@ export default {
   ],
   performance: { hints: false },
 }
+
+
