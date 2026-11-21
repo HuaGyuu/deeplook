@@ -35,6 +35,17 @@ export const en = {
     'Chats or attachments have not been saved locally. Retry before closing this page.',
   sessionDeleteFailed: 'Unable to delete this chat. Please try again.',
   settings: 'Settings',
+  tokenUsage: '{input} in · {output} out',
+  tokenUsageTitle: 'Input {input} tokens (cached {cached}) · output {output} tokens',
+  selectSessions: 'Select',
+  selectedCount: '{count} selected',
+  selectAll: 'Select all',
+  clearSelection: 'Clear',
+  sessionsDeleted: 'Deleted {count} chats',
+  sessionsDeleteFailed: '{count} chats failed to delete. Please try again.',
+  deletingSessions: 'Deleting…',
+  deleteSelectedTitle: 'Delete selected chats',
+  deleteSelectedDescription: 'The {count} selected chats and their uploaded files will be permanently deleted. Continue?',
   appName: 'DeepLook',
   settingsGroupAccount: 'Account',
   balanceLabel: 'Balance',
@@ -271,6 +282,8 @@ export const en = {
   settingsLocaleZhCN: 'Simplified Chinese',
   settingsLocaleEnUS: 'English',
 } satisfies Record<keyof typeof zh, string>
+
+
 
 
 

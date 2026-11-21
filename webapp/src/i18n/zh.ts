@@ -32,6 +32,17 @@ export const zh = {
   sessionSaveFailed: '对话或附件尚未保存到本机，关闭页面可能丢失，请重试',
   sessionDeleteFailed: '删除对话失败，请重试',
   settings: '设置',
+  tokenUsage: '输入 {input} · 输出 {output}',
+  tokenUsageTitle: '输入 {input} tokens（缓存命中 {cached}）· 输出 {output} tokens',
+  selectSessions: '多选',
+  selectedCount: '已选 {count} 项',
+  selectAll: '全选',
+  clearSelection: '取消全选',
+  sessionsDeleted: '已删除 {count} 个对话',
+  sessionsDeleteFailed: '有 {count} 个对话删除失败，请重试',
+  deletingSessions: '删除中…',
+  deleteSelectedTitle: '删除所选对话',
+  deleteSelectedDescription: '将永久删除选中的 {count} 个对话及其中上传的文件，无法恢复。确认删除吗？',
   appName: 'DeepLook',
   settingsGroupAccount: '账户',
   balanceLabel: '余额',
@@ -263,6 +274,8 @@ export const zh = {
   settingsLocaleZhCN: '简体中文',
   settingsLocaleEnUS: 'English',
 } as const
+
+
 
 
 

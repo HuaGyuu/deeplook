@@ -1,0 +1,15 @@
+.usage {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  user-select: none;
+  cursor: default;
+}
+
+@media not all and (min-width: 768px) {
+  .usage {
+    font-size: 10.5px;
+  }
+}

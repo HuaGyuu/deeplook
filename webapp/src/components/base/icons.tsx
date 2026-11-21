@@ -579,3 +579,11 @@ export const IconCompressOutline16 = () => (
     <path d="M2.8 2.8L6.2 6.2M13.2 2.8L9.8 6.2M2.8 13.2L6.2 9.8M13.2 13.2L9.8 9.8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
   </svg>
 )
+
+/** 多选会话：勾选框 */
+export const IconSelectOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="1.7" y="1.7" width="12.6" height="12.6" rx="4" stroke="currentColor" strokeWidth="1.4" />
+    <path d="M5.2 8.1L7.2 10.1L10.9 6.2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+)

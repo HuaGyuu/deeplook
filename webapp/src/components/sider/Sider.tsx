@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
-import { IconPanelLeftOutline16, IconSearchOutline16, IconSettingsOutline16, NewChatIcon } from '../base/icons.js'
+import { IconPanelLeftOutline16, IconSearchOutline16, IconSelectOutline16, IconSettingsOutline16, NewChatIcon } from '../base/icons.js'
 import { openGlobalSearch } from '../globalSearch/globalSearchState.js'
 import { setSiderCollapsed } from '../../services/settings.js'
 import { usePinnedSessions } from '../../services/pins.js'
@@ -37,6 +37,61 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
   }, [sessions, pinnedIds, now, t])
   const [deleting, setDeleting] = useState<SessionSummary | null>(null)
   const [deletePending, setDeletePending] = useState(false)
+  /** 多选删除：进入后点击会话切换选中，不再打开会话 */
+  const [selecting, setSelecting] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set())
+  const [bulkConfirm, setBulkConfirm] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((previous) => {
+      const next = new Set(previous)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  const allSelected = sessions.length > 0 && selectedIds.size >= sessions.length
+  const toggleSelectAll = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(sessions.map((session) => session.id)))
+  }
+
+  const exitSelect = () => {
+    if (bulkDeleting) {
+      return
+    }
+    setSelecting(false)
+    setSelectedIds(new Set())
+    setBulkConfirm(false)
+  }
+
+  /** 逐个删除，失败的计数后用 toast 说明 */
+  const deleteSelected = async () => {
+    const ids = [...selectedIds]
+    if (ids.length === 0 || bulkDeleting) {
+      return
+    }
+    setBulkDeleting(true)
+    let failed = 0
+    for (const id of ids) {
+      if (!(await removeSession(id))) {
+        failed += 1
+      }
+    }
+    setBulkDeleting(false)
+    setBulkConfirm(false)
+    setSelecting(false)
+    setSelectedIds(new Set())
+    if (failed > 0) {
+      showToast({ key: 'sessionsDeleteFailed', params: { count: failed }, type: 'error' })
+    } else {
+      showToast({ key: 'sessionsDeleted', params: { count: ids.length } })
+    }
+  }
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>
@@ -102,6 +157,35 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
         {t('newChat')}
       </button>
       <BalanceCard />
+      <div className={styles.listToolbar}>
+        {selecting ? (
+          <>
+            <span className={styles.selectedCount}>{t('selectedCount', { count: selectedIds.size })}</span>
+            <button type="button" className={styles.toolbarAction} onClick={toggleSelectAll}>
+              {allSelected ? t('clearSelection') : t('selectAll')}
+            </button>
+            <button type="button" className={styles.toolbarAction} onClick={exitSelect}>
+              {t('cancel')}
+            </button>
+            <Button
+              variant="danger"
+              size="s"
+              disabled={selectedIds.size === 0 || bulkDeleting}
+              onClick={() => setBulkConfirm(true)}
+            >
+              {t(bulkDeleting ? 'deletingSessions' : 'delete')}
+            </Button>
+          </>
+        ) : (
+          <IconButton
+            size="m"
+            icon={<IconSelectOutline16 />}
+            tooltip={t('selectSessions')}
+            tooltipPlacement="bottom"
+            onClick={() => setSelecting(true)}
+          />
+        )}
+      </div>
       <div className={styles.listWrap}>
         <div className={styles.list}>
           {groups.map((group) => (
@@ -114,6 +198,9 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
                   active={session.id === activeId}
                   pinned={pinnedIds.includes(session.id)}
                   onDelete={() => setDeleting(session)}
+                  selecting={selecting}
+                  selected={selectedIds.has(session.id)}
+                  onToggleSelect={() => toggleSelected(session.id)}
                 />
               ))}
             </div>
@@ -163,6 +250,28 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
           }
         >
           {t('deleteSessionWithFilesDescription')}
+        </Modal>
+      ) : null}
+      {bulkConfirm ? (
+        <Modal
+          title={t('deleteSelectedTitle')}
+          onClose={() => {
+            if (!bulkDeleting) {
+              setBulkConfirm(false)
+            }
+          }}
+          footer={
+            <>
+              <Button variant="outlined" disabled={bulkDeleting} onClick={() => setBulkConfirm(false)}>
+                {t('cancel')}
+              </Button>
+              <Button variant="danger" disabled={bulkDeleting} onClick={() => void deleteSelected()}>
+                {t(bulkDeleting ? 'deletingSessions' : 'delete')}
+              </Button>
+            </>
+          }
+        >
+          {t('deleteSelectedDescription', { count: selectedIds.size })}
         </Modal>
       ) : null}
     </div>
