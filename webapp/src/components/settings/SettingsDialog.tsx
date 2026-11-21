@@ -24,6 +24,7 @@ import {
 import { useIsMobile } from '../../app/viewport.js'
 import { APP_VERSION } from '../../services/appVersion.js'
 import { UpdateChecker } from './UpdateChecker.js'
+import { LOGO_DATA_URL } from '../../assets/logoData.js'
 import { WECHAT_QR_DATA_URL } from '../../assets/wechatQrData.js'
 import { openExternalUrl } from '../../services/externalLink.js'
 import { useChatStore } from '../../services/chat/store.js'
@@ -739,6 +740,7 @@ const AboutApp = () => {
   const [contactOpen, setContactOpen] = useState(false)
   return (
     <div className={styles.about}>
+      <img className={styles.aboutLogo} src={LOGO_DATA_URL} alt="" aria-hidden="true" />
       <div className={styles.aboutName}>DeepLook</div>
       <div className={styles.aboutVersion}>
         {t('settingsVersion')} {APP_VERSION}
@@ -771,14 +773,6 @@ const AboutApp = () => {
           >
             {t('contactAuthor')}
           </button>
-        </div>
-        <div className={styles.aboutRow}>
-          <span>{t('aboutLicense')}</span>
-          <span className={styles.aboutValue}>MIT</span>
-        </div>
-        <div className={styles.aboutRow}>
-          <span>{t('aboutTech')}</span>
-          <span className={styles.aboutValue}>WebView + React</span>
         </div>
       </div>
       <UpdateChecker />
@@ -1257,6 +1251,7 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
     />
   )
 }
+
 
 
 

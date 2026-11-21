@@ -703,6 +703,15 @@
   text-align: center;
 }
 
+.aboutLogo {
+  width: 76px;
+  height: 76px;
+  margin-bottom: 2px;
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
+}
+
 .aboutName {
   font-size: 24px;
   line-height: 32px;
@@ -989,4 +998,5 @@
   background-color: var(--dsw-alias-brand-primary);
   transition: width 0.2s ease;
 }
+
 
