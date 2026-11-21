@@ -84,7 +84,7 @@
   position: relative;
   flex: 1;
   min-height: 0;
-  margin-top: 24px;
+  margin-top: 12px;
 }
 
 .list {
@@ -320,3 +320,4 @@
   gap: 2px;
   flex-shrink: 0;
 }
+

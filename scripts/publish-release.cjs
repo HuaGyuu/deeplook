@@ -59,12 +59,13 @@ const releaseNotes = (sha256, sizeMb) => [
   '- 更换为蓝色小鱼应用图标，新对话欢迎页显示应用图标',
   '- 压缩确认弹窗补充「为什么压缩」和压缩效果说明',
   '- 关于页「问题反馈」改为「联系作者」，点击显示微信二维码',
+  '- 侧边栏新增余额卡片：显示账户余额，一键前往充值',
   '',
   '### 安装',
   `下载下方 \`deeplook-${VERSION}.apk\` 安装（需允许未知来源），首次打开到 **设置 → 数据管理** 填入 DeepSeek API Key。`,
   '',
   '### 说明',
-  `- 版本：${VERSION}（versionCode 16）`,
+  `- 版本：${VERSION}（versionCode 17）`,
   '- 包名：`com.huagyuu.deeplook`',
   `- 大小：${sizeMb} MB`,
   `- SHA-256：\`${sha256}\``,
@@ -150,6 +151,7 @@ const releaseNotes = (sha256, sizeMb) => [
   console.error('FAILED', error.message);
   process.exit(1);
 });
+
 
 
 

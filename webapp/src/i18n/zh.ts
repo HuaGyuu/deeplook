@@ -34,6 +34,10 @@ export const zh = {
   settings: '设置',
   appName: 'DeepLook',
   settingsGroupAccount: '账户',
+  balanceLabel: '余额',
+  balanceLoading: '查询中…',
+  balanceNoKey: '未设置 API Key',
+  balanceUnavailable: '余额获取失败',
   settingsGroupApp: '应用',
   settingsGroupVoice: '语音',
   settingsGroupAbout: '关于',
@@ -259,6 +263,7 @@ export const zh = {
   settingsLocaleZhCN: '简体中文',
   settingsLocaleEnUS: 'English',
 } as const
+
 
 
 

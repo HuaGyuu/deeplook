@@ -25,6 +25,7 @@ import { useIsMobile } from '../../app/viewport.js'
 import { APP_VERSION } from '../../services/appVersion.js'
 import { UpdateChecker } from './UpdateChecker.js'
 import { WECHAT_QR_DATA_URL } from '../../assets/wechatQrData.js'
+import { openExternalUrl } from '../../services/externalLink.js'
 import { useChatStore } from '../../services/chat/store.js'
 import { regionCodes, getRegionName, provinces } from '../../services/location.js'
 import {
@@ -753,8 +754,10 @@ const AboutApp = () => {
           <a
             className={styles.aboutLink}
             href="https://github.com/HuaGyuu/deeplook"
-            target="_blank"
-            rel="noreferrer"
+            onClick={(event) => {
+              event.preventDefault()
+              openExternalUrl('https://github.com/HuaGyuu/deeplook')
+            }}
           >
             HuaGyuu/deeplook
           </a>
@@ -1254,6 +1257,7 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
     />
   )
 }
+
 
 
 

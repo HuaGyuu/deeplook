@@ -37,6 +37,10 @@ export const en = {
   settings: 'Settings',
   appName: 'DeepLook',
   settingsGroupAccount: 'Account',
+  balanceLabel: 'Balance',
+  balanceLoading: 'Loading…',
+  balanceNoKey: 'API key not set',
+  balanceUnavailable: 'Balance unavailable',
   settingsGroupApp: 'App',
   settingsGroupVoice: 'Voice',
   settingsGroupAbout: 'About',
@@ -267,6 +271,7 @@ export const en = {
   settingsLocaleZhCN: 'Simplified Chinese',
   settingsLocaleEnUS: 'English',
 } satisfies Record<keyof typeof zh, string>
+
 
 
 
