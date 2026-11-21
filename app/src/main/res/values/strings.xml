@@ -8,6 +8,12 @@
     <string name="splash_starting">正在启动…</string>
     <string name="splash_diag">诊断：%1$s（点击重试）</string>
     <string name="splash_crashed">渲染进程异常，正在恢复…</string>
+    <string name="splash_loading">正在启动… %1$d%%</string>
+    <string name="splash_retrying">加载超时，正在重试（%1$d/3）· %2$d%%</string>
+    <string name="splash_compat">已切换兼容模式重试（%1$d/3）</string>
+    <string name="splash_failed">启动失败：%1$s（点击重试）</string>
+    <string name="splash_compat_on">已切换兼容模式，正在重载…</string>
+    <string name="splash_compat_off">已关闭兼容模式，正在重载…</string>
 </resources>
 
 

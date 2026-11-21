@@ -113,13 +113,49 @@ public class MainActivity extends AppCompatActivity {
     private boolean pageReady;
     /** 空白页修复只做一次，避免反复重载 */
     private boolean repairedOnce;
+    /** 冷启动看门狗：超时逐级升级（重载 → 兼容渲染 → 停止并提示） */
+    private int bootAttempt;
+    private int loadProgress;
+    private String lastBootReason;
+    /** 兼容模式：WebView 用软件渲染（部分机型硬件合成会黑屏），持久化到下次启动 */
+    private boolean compatSoftware;
     private boolean splashCreated;
 
-    private final Runnable watchdogTask = () -> {
-        if (pageReady) {
-            return;
+    private final Runnable watchdogTask = new Runnable() {
+        @Override
+        public void run() {
+            if (pageReady) {
+                return;
+            }
+            bootAttempt++;
+            lastBootReason = "timeout";
+            if (bootAttempt == 1) {
+                diag("boot-timeout-1");
+                if (splashCreated && splashView != null) {
+                    splashView.setVisibility(View.VISIBLE);
+                    splashStatus.setText(getString(R.string.splash_retrying, 1, loadProgress)
+                            + "\nwv=" + webViewVersion());
+                }
+                if (webView != null) {
+                    webView.clearCache(false);
+                    webView.loadUrl(bootUrl());
+                }
+                mainHandler.postDelayed(this, 6000);
+            } else if (bootAttempt == 2) {
+                diag("boot-timeout-2-compat");
+                setCompatSoftware(true);
+                recreateWebView(true);
+                mainHandler.postDelayed(this, 8000);
+            } else {
+                diag("boot-timeout-3");
+                if (splashCreated && splashView != null) {
+                    splashView.setVisibility(View.VISIBLE);
+                    splashStatus.setText(getString(R.string.splash_failed, "boot-timeout")
+                            + "\nwv=" + webViewVersion());
+                    appendDiagSummary();
+                }
+            }
         }
-        diag("boot-timeout");
     };
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -154,7 +190,9 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
 
-        createAndConfigureWebView(false);
+        compatSoftware = getSharedPreferences("boot", MODE_PRIVATE)
+                .getBoolean("software", false);
+        createAndConfigureWebView(compatSoftware);
         rootView.addView(webView);
         buildSplashView();
         setContentView(rootView);
@@ -372,10 +410,19 @@ public class MainActivity extends AppCompatActivity {
             }
 
             @Override
+            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                super.onPageStarted(view, url, favicon);
+                if (splashCreated && splashView != null && !pageReady) {
+                    splashStatus.setText(getString(R.string.splash_loading, loadProgress));
+                }
+            }
+
+            @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
                 injectDownloadBridge();
                 pageReady = true;
+                bootAttempt = 0;
                 mainHandler.removeCallbacks(watchdogTask);
                 hideSplash();
                 // 再确认一次真的渲染出了内容：有些机型页面已完成后仍是一整块黑屏
@@ -462,6 +509,21 @@ public class MainActivity extends AppCompatActivity {
             public void onPermissionRequestCanceled(PermissionRequest request) {
                 if (pendingPermission == request) {
                     pendingPermission = null;
+                }
+            }
+
+            @Override
+            public void onProgressChanged(WebView view, int newProgress) {
+                super.onProgressChanged(view, newProgress);
+                loadProgress = newProgress;
+                if (pageReady || !splashCreated || splashView == null) {
+                    return;
+                }
+                if (bootAttempt > 0) {
+                    splashStatus.setText(getString(R.string.splash_retrying, bootAttempt, newProgress)
+                            + "\nwv=" + webViewVersion());
+                } else {
+                    splashStatus.setText(getString(R.string.splash_loading, newProgress));
                 }
             }
 
@@ -1005,13 +1067,19 @@ public class MainActivity extends AppCompatActivity {
         mainHandler.post(() -> Toast.makeText(this, text, Toast.LENGTH_LONG).show());
     }
 
+    /** 带唯一查询串的入口地址：避免历史缓存条目影响首屏 */
+    private String bootUrl() {
+        return APP_URL + "?boot=" + System.currentTimeMillis();
+    }
+
     /** 加载页面并重新武装启动看门狗 */
     private void loadApp() {
         pageReady = false;
+        loadProgress = 0;
         showSplash(null);
         mainHandler.removeCallbacks(watchdogTask);
-        mainHandler.postDelayed(watchdogTask, 12000);
-        webView.loadUrl(APP_URL);
+        mainHandler.postDelayed(watchdogTask, 5000);
+        webView.loadUrl(bootUrl());
     }
 
     /** 点重试：普通重载；软件渲染修复过就不再重复 */
@@ -1067,6 +1135,15 @@ public class MainActivity extends AppCompatActivity {
         column.setBackgroundColor(ContextCompat.getColor(this, R.color.chat_background));
         column.setClickable(true);
         column.setOnClickListener(v -> retryLoad());
+        // 长按切换兼容模式（软件渲染）：自动恢复失败时给用户一个手动出口
+        column.setOnLongClickListener(v -> {
+            boolean next = !compatSoftware;
+            setCompatSoftware(next);
+            splashStatus.setText(next ? R.string.splash_compat_on : R.string.splash_compat_off);
+            recreateWebView(next);
+            showSplash(next ? getString(R.string.splash_compat_on) : getString(R.string.splash_compat_off));
+            return true;
+        });
 
         ImageView logo = new ImageView(this);
         logo.setImageResource(R.mipmap.ic_launcher);
@@ -1116,6 +1193,54 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         splashView.setVisibility(View.GONE);
+    }
+
+    /** 记录兼容模式（软件渲染）选择 */
+    private void setCompatSoftware(boolean software) {
+        compatSoftware = software;
+        try {
+            getSharedPreferences("boot", MODE_PRIVATE).edit()
+                    .putBoolean("software", software).apply();
+        } catch (Exception ignored) {
+            // 写不了偏好也不影响本次生效
+        }
+    }
+
+    /** 当前 WebView 提供方与版本，黑屏排查时能区分是应用问题还是系统 WebView 问题 */
+    private String webViewVersion() {
+        try {
+            android.content.pm.PackageInfo info = WebViewCompat.getCurrentWebViewPackage(this);
+            if (info == null) {
+                return "unknown";
+            }
+            String name = info.packageName == null ? "?" : info.packageName.replace("com.", "");
+            return name + "/" + info.versionName;
+        } catch (Exception e) {
+            return "unknown";
+        }
+    }
+
+    /** 把诊断日志（最多 4 行）贴到提示文字下面 */
+    private void appendDiagSummary() {
+        if (!splashCreated || splashView == null) {
+            return;
+        }
+        try {
+            File file = new File(getCacheDir(), "deeplook-diag.log");
+            StringBuilder builder = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                    new java.io.FileInputStream(file), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    builder.append(line).append('\n');
+                }
+            }
+            String all = builder.toString().trim();
+            String tail = all.length() > 260 ? all.substring(all.length() - 260) : all;
+            splashStatus.setText(splashStatus.getText() + "\n\n" + tail);
+        } catch (IOException ignored) {
+            // 没有日志时保持原样
+        }
     }
 
     /** 记录启动异常，并把最近一条显示在启动层上，方便用户截图反馈 */
