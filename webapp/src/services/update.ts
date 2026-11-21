@@ -103,7 +103,9 @@ const parseRelease = (data: {
   assets?: { name?: string; browser_download_url?: string }[]
 }): LatestRelease => {
   const version = normalizeVersion(data.tag_name ?? '')
-  const apk = data.assets?.find((asset) => asset.name?.toLowerCase().endsWith('.apk'))
+  // 同一 Release 里有正式版和 -diag 调试版两个 APK，自动更新只能挑正式版
+  const apks = (data.assets ?? []).filter((asset) => /\.apk$/i.test(asset.name ?? ''))
+  const apk = apks.find((asset) => !/-diag\.apk$/i.test(asset.name ?? '')) ?? apks[0]
   const htmlUrl = data.html_url ?? `https://github.com/${REPOSITORY}/releases`
   return {
     version,
