@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react'
 import {
-  closeMobileSider,
-  openMobileSider,
+  finishMobileSiderDrag,
+  setMobileSiderDrag,
   useMobileSider,
 } from '../components/sider/mobileSiderState.js'
 
@@ -121,7 +121,8 @@ export const useMobileViewport = (enabled: boolean) => {
 }
 
 /**
- * 移动端手势：在内容区向右滑打开左侧边栏，向左滑关闭；
+ * 移动端手势：向右滑打开左侧边栏，向左滑关闭。
+ * 拖动过程中抽屉按手指位移实时跟随（progress 0→1），松手后再决定展开或收起；
  * 跳过代码块/表格/输入框等可横向滚动的区域，避免和它们抢手势。
  */
 export const useSwipeSider = (enabled: boolean) => {
@@ -133,6 +134,12 @@ export const useSwipeSider = (enabled: boolean) => {
     let startY = 0
     let tracking = false
     let ignore = false
+    let direction: 'open' | 'close' | null = null
+    /** 抽屉宽度，用于把像素位移换算成 0..1 的进度 */
+    const drawerWidth = () => {
+      const width = Math.min(300, window.innerWidth - 48)
+      return width > 0 ? width : 1
+    }
     const shouldIgnore = (target: EventTarget | null) =>
       target instanceof Element &&
       target.closest(
@@ -148,35 +155,61 @@ export const useSwipeSider = (enabled: boolean) => {
       startX = touch.clientX
       startY = touch.clientY
       tracking = true
+      direction = null
       ignore =
         document.querySelector('[role="dialog"]') !== null || shouldIgnore(event.target)
     }
-    const onEnd = (event: TouchEvent) => {
+    const onMove = (event: TouchEvent) => {
+      if (!tracking || ignore || event.touches.length !== 1) {
+        return
+      }
+      const touch = event.touches[0]
+      const dx = touch.clientX - startX
+      const dy = touch.clientY - startY
+      if (!direction) {
+        // 位移太小或明显是纵向滚动时先不接管手势
+        if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy) * 1.2) {
+          return
+        }
+        const open = useMobileSider.getState().open
+        if (dx > 0 && !open) {
+          direction = 'open'
+        } else if (dx < 0 && open) {
+          direction = 'close'
+        } else {
+          tracking = false
+          return
+        }
+      }
+      const distance = dx / drawerWidth()
+      const progress =
+        direction === 'open'
+          ? Math.min(1, Math.max(0, distance))
+          : Math.min(1, Math.max(0, 1 + distance))
+      setMobileSiderDrag(progress)
+    }
+    const onEnd = () => {
       if (!tracking) {
         return
       }
       tracking = false
-      if (ignore) {
+      if (!direction) {
         return
       }
-      const touch = event.changedTouches[0]
-      const dx = touch.clientX - startX
-      const dy = touch.clientY - startY
-      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) {
-        return
-      }
-      const open = useMobileSider.getState().open
-      if (dx > 0 && !open) {
-        openMobileSider()
-      } else if (dx < 0 && open) {
-        closeMobileSider()
-      }
+      const { progress } = useMobileSider.getState()
+      // 打开超过 40% 或收起剩余不足 60% 就完成动作，否则回到原状态
+      finishMobileSiderDrag(direction === 'open' ? progress >= 0.4 : progress > 0.6)
+      direction = null
     }
     document.addEventListener('touchstart', onStart, { passive: true })
+    document.addEventListener('touchmove', onMove, { passive: true })
     document.addEventListener('touchend', onEnd, { passive: true })
+    document.addEventListener('touchcancel', onEnd, { passive: true })
     return () => {
       document.removeEventListener('touchstart', onStart)
+      document.removeEventListener('touchmove', onMove)
       document.removeEventListener('touchend', onEnd)
+      document.removeEventListener('touchcancel', onEnd)
     }
   }, [enabled])
 }

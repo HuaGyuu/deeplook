@@ -319,41 +319,44 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
 /** 移动端抽屉：浮在页面上方，点空白区域关闭；关闭时保留一帧做滑出动画。 */
 export const MobileSider = () => {
   const open = useMobileSider((state) => state.open)
-  const [rendered, setRendered] = useState(open)
-  const [closing, setClosing] = useState(false)
+  const dragging = useMobileSider((state) => state.dragging)
+  const progress = useMobileSider((state) => state.progress)
+  const visible = open || dragging || progress > 0
+  const [rendered, setRendered] = useState(visible)
 
   useEffect(() => {
-    if (open) {
+    if (visible) {
       setRendered(true)
-      setClosing(false)
       return
     }
     if (!rendered) {
       return
     }
-    // open 先变为 false，等滑出动画结束再真正卸载
-    setClosing(true)
-    const timer = setTimeout(() => {
-      setRendered(false)
-      setClosing(false)
-    }, 220)
+    // 收起时等过渡动画结束再真正卸载
+    const timer = setTimeout(() => setRendered(false), 300)
     return () => clearTimeout(timer)
-  }, [open, rendered])
+  }, [visible, rendered])
 
   if (!rendered) {
     return null
   }
+  // 拖动时抽屉直接跟随手指位置；松手后交给 CSS 过渡继续
+  const shift = dragging ? (1 - Math.min(1, Math.max(0, progress))) * 100 : open ? 0 : 100
   return (
     <>
       <div
-        className={clsx(styles.drawerMask, closing && styles.drawerMaskClosing)}
+        className={clsx(styles.drawerMask, open && !dragging && styles.drawerMaskOpen)}
+        style={dragging ? { opacity: Math.min(1, Math.max(0, progress)) } : undefined}
         onClick={closeMobileSider}
       />
-      <div className={clsx(styles.drawer, closing && styles.drawerClosing)}>
+      <div
+        className={clsx(styles.drawer, open && !dragging && styles.drawerOpen)}
+        style={
+          dragging ? { transform: `translateX(-${shift}%)`, transition: 'none' } : undefined
+        }
+      >
         <Sider mobile />
       </div>
     </>
   )
 }
-
-

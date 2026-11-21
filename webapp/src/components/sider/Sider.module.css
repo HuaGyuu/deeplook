@@ -213,7 +213,12 @@
   left: 0;
   z-index: 800;
   will-change: transform;
-  animation: drawerIn 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  transform: translateX(-100%);
+  transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.drawerOpen {
+  transform: translateX(0);
 }
 
 .drawerClosing {
@@ -225,7 +230,12 @@
   inset: 0;
   z-index: 799;
   background-color: rgba(0, 0, 0, 0.32);
-  animation: maskIn 0.24s ease both;
+  opacity: 0;
+  transition: opacity 0.24s ease;
+}
+
+.drawerMaskOpen {
+  opacity: 1;
 }
 
 .drawerMaskClosing {
@@ -369,5 +379,6 @@
     background-color: var(--dsw-specific-sidebar-nav-item-hover);
   }
 }
+
 
 
