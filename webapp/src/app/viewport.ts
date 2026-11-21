@@ -120,6 +120,11 @@ export const useMobileViewport = (enabled: boolean) => {
   return frameRef
 }
 
+/** 甩动判定：滑动速度超过该值（px/ms）时，即使距离很短也完成动作 */
+const FLING_VELOCITY = 0.5
+/** 松手时距离最后一次移动超过该时长（ms）就不再按甩动处理 */
+const FLING_IDLE = 120
+
 /**
  * 移动端手势：向右滑打开左侧边栏，向左滑关闭。
  * 拖动过程中抽屉按手指位移实时跟随（progress 0→1），松手后再决定展开或收起；
@@ -135,6 +140,8 @@ export const useSwipeSider = (enabled: boolean) => {
     let tracking = false
     let ignore = false
     let direction: 'open' | 'close' | null = null
+    /** 最近一小段时间的触摸采样，用于判断甩动速度 */
+    let samples: { time: number; x: number }[] = []
     /** 抽屉宽度，用于把像素位移换算成 0..1 的进度 */
     const drawerWidth = () => {
       const width = Math.min(300, window.innerWidth - 48)
@@ -156,6 +163,7 @@ export const useSwipeSider = (enabled: boolean) => {
       startY = touch.clientY
       tracking = true
       direction = null
+      samples = [{ time: performance.now(), x: touch.clientX }]
       ignore =
         document.querySelector('[role="dialog"]') !== null || shouldIgnore(event.target)
     }
@@ -181,6 +189,12 @@ export const useSwipeSider = (enabled: boolean) => {
           return
         }
       }
+      samples.push({ time: performance.now(), x: touch.clientX })
+      // 只保留最近 120ms 的采样，甩动速度才有意义
+      const cutoff = performance.now() - 120
+      while (samples.length > 2 && samples[0].time < cutoff) {
+        samples.shift()
+      }
       const distance = dx / drawerWidth()
       const progress =
         direction === 'open'
@@ -197,9 +211,23 @@ export const useSwipeSider = (enabled: boolean) => {
         return
       }
       const { progress } = useMobileSider.getState()
-      // 打开超过 40% 或收起剩余不足 60% 就完成动作，否则回到原状态
-      finishMobileSiderDrag(direction === 'open' ? progress >= 0.4 : progress > 0.6)
+      // 甩动速度：最近采样区间的位移除以耗时（px/ms）
+      const first = samples[0]
+      const last = samples.at(-1)
+      const span = first && last ? last.time - first.time : 0
+      // 松手前手指停住不动的话不算甩动，避免「慢慢拖住再松手」被当成快速滑动
+      const idle = last ? performance.now() - last.time : Number.POSITIVE_INFINITY
+      const speed =
+        span > 0 && idle <= FLING_IDLE ? ((last?.x ?? 0) - (first?.x ?? 0)) / span : 0
+      // 方向一致且速度够快时，即使距离很短也完成动作
+      const flung =
+        direction === 'open' ? speed >= FLING_VELOCITY : speed <= -FLING_VELOCITY
+      // 距离阈值：打开超过 40%，收起剩余不足 60%
+      const reached = direction === 'open' ? progress >= 0.4 : progress <= 0.6
+      finishMobileSiderDrag(direction === 'open' ? reached || flung : !(reached || flung))
       direction = null
+      samples = []
+
     }
     document.addEventListener('touchstart', onStart, { passive: true })
     document.addEventListener('touchmove', onMove, { passive: true })
