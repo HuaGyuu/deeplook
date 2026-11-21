@@ -246,7 +246,31 @@ export const zh = {
     '上传的文件包含暂未支持的文件格式，请转换文件格式后重试。支持 PDF、DOC、XLSX、PPT、图片、文本、代码等。',
   uploadFileStatusFailed: '上传失败',
   uploadRetry: '{message}，点击重试',
-  chatInputPlaceholderChat: '请输入消息',
+  chatInputPlaceholderChat: '发消息或按住说话',
+  chatInputPlaceholderVoice: '发消息或按住说话',
+  voiceCallTitle: '语音通话',
+  voiceCallDefaultTitle: '语音通话',
+  voiceCallHangUp: '挂断',
+  voiceCallListening: '正在听… {seconds}s',
+  voiceCallTranscribing: '正在识别…',
+  voiceCallThinking: '正在思考…',
+  voiceCallSpeaking: '正在回答…',
+  voiceCallStatusIdle: '按住下方按钮开始说话',
+  voiceCallRelease: '松开发送',
+  voiceCallHint: '按住说话，松开发送；AI 回答会自动朗读，按住时暂停朗读。',
+  voiceCallEntry: '语音通话',
+  voiceInputUnavailable: '当前环境不支持录音',
+  holdToTalkSendHint: '松手发送，上滑取消',
+  holdToTalkCancel: '松开取消',
+  holdToTalk: '按住说话',
+  holdToTalkRelease: '松开发送 · {seconds}s',
+  switchToVoiceMode: '切换到按住说话',
+  switchToKeyboard: '切换回键盘',
+  moreActions: '更多操作',
+  attachCamera: '拍照',
+  attachGallery: '相册',
+  attachFile: '文件',
+  voiceInputTranscribing: '识别中…',
   deactivatedThinkTooltip: '先思考后回答，解决推理问题',
   thinkingSwitch: '深度思考',
   deactivatedSearchTooltip: '按需搜索网页',
@@ -286,6 +310,9 @@ export const zh = {
   settingsLocaleZhCN: '简体中文',
   settingsLocaleEnUS: 'English',
 } as const
+
+
+
 
 
 

@@ -254,7 +254,31 @@ export const en = {
     'The selected files include unsupported formats. Please convert them and try again. Supported: PDF, DOC, XLSX, PPT, images, text, code, and more.',
   uploadFileStatusFailed: 'Upload failed',
   uploadRetry: '{message}. Click to retry',
-  chatInputPlaceholderChat: 'Enter a message',
+  chatInputPlaceholderChat: 'Send a message or hold to talk',
+  chatInputPlaceholderVoice: 'Send a message or hold to talk',
+  voiceCallTitle: 'Voice call',
+  voiceCallDefaultTitle: 'Voice call',
+  voiceCallHangUp: 'Hang up',
+  voiceCallListening: 'Listening… {seconds}s',
+  voiceCallTranscribing: 'Transcribing…',
+  voiceCallThinking: 'Thinking…',
+  voiceCallSpeaking: 'Answering…',
+  voiceCallStatusIdle: 'Hold the button below to talk',
+  voiceCallRelease: 'Release to send',
+  voiceCallHint: 'Hold to talk, release to send. Replies are read aloud and pause when you hold the button.',
+  voiceCallEntry: 'Voice call',
+  voiceInputUnavailable: 'Recording is not available here',
+  holdToTalkSendHint: 'Release to send, swipe up to cancel',
+  holdToTalkCancel: 'Release to cancel',
+  holdToTalk: 'Hold to talk',
+  holdToTalkRelease: 'Release to send · {seconds}s',
+  switchToVoiceMode: 'Switch to hold-to-talk',
+  switchToKeyboard: 'Switch back to keyboard',
+  moreActions: 'More actions',
+  attachCamera: 'Camera',
+  attachGallery: 'Photos',
+  attachFile: 'Files',
+  voiceInputTranscribing: 'Transcribing…',
   deactivatedThinkTooltip: 'Think before responding to solve reasoning problems',
   thinkingSwitch: 'DeepThink',
   deactivatedSearchTooltip: 'Search the web when necessary',
@@ -294,6 +318,10 @@ export const en = {
   settingsLocaleZhCN: 'Simplified Chinese',
   settingsLocaleEnUS: 'English',
 } satisfies Record<keyof typeof zh, string>
+
+
+
+
 
 
 

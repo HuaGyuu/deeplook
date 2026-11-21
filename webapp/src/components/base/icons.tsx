@@ -587,3 +587,48 @@ export const IconSelectOutline16 = () => (
     <path d="M5.2 8.1L7.2 10.1L10.9 6.2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 )
+
+/** 加号：圆形底由样式提供 */
+export const IconPlusOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M8 2.6V13.4M2.6 8H13.4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+)
+
+/** 键盘：切回文字输入 */
+export const IconKeyboardOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="1.2" y="3.4" width="13.6" height="9.2" rx="2" stroke="currentColor" strokeWidth="1.4" />
+    <path d="M4 6.2H4.9M6.6 6.2H7.5M9.2 6.2H10.1M11.8 6.2H12.1M4 8.5H4.9M6.6 8.5H7.5M9.2 8.5H10.1M11.8 8.5H12.1M5.2 10.6H10.8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+  </svg>
+)
+
+/** 拍照 */
+export const IconCameraOutline20 = () => (
+  <svg width={20} height={20} viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M6.6 5.2L7.4 3.8H12.6L13.4 5.2H16.2C17.2 5.2 18 6 18 7V15.2C18 16.2 17.2 17 16.2 17H3.8C2.8 17 2 16.2 2 15.2V7C2 6 2.8 5.2 3.8 5.2H6.6Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    <circle cx="10" cy="11" r="3.1" stroke="currentColor" strokeWidth="1.5" />
+  </svg>
+)
+
+/** 语音通话：标准电话听筒（实心） */
+export const IconCallOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.24 1.02l-2.2 2.2z"
+      fill="currentColor"
+    />
+  </svg>
+)
+
+
+
+/** 语音通话：20px 版本，用于 44px 的顶栏按钮 */
+export const IconCallOutline20 = () => (
+  <svg width={20} height={20} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.24 1.02l-2.2 2.2z"
+      fill="currentColor"
+    />
+  </svg>
+)

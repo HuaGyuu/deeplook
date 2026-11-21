@@ -4,6 +4,9 @@ import { useTranslate } from '../../i18n/index.js'
 import type { Session } from '../../services/chat/types.js'
 import { ChatInput } from '../chatInput/ChatInput.js'
 import { CompressButton } from './CompressButton.js'
+import { IconCallOutline16 } from '../base/icons.js'
+import { IconButton } from '../base/IconButton.js'
+import { openVoiceCall } from '../voiceCall/voiceCallState.js'
 import { ContextBanner } from './ContextBanner.js'
 import { MessageList } from '../messages/MessageList.js'
 import { MobileHeader } from './MobileHeader.js'
@@ -36,6 +39,14 @@ export const SessionView = ({
             {title}
           </div>
           <div className={styles.headerActions}>
+            <IconButton
+              size="m"
+              tone="primary"
+              icon={<IconCallOutline16 />}
+              tooltip={t('voiceCallEntry')}
+              aria-label={t('voiceCallEntry')}
+              onClick={openVoiceCall}
+            />
             <CompressButton session={session} disabled={streaming} />
           </div>
         </div>

@@ -136,19 +136,9 @@ export const useVoiceInput = (onText: (text: string) => void) => {
     }
   }, [cancel])
 
-  const toggle = useCallback(async () => {
-    if (!AVAILABLE) {
-      return
-    }
-    if (status === 'recording') {
-      await finish()
-      return
-    }
-    if (status === 'transcribing') {
-      cancel()
-      return
-    }
-    if (permissionPendingRef.current) {
+  /** 按住说话：开始录音；已在录音或转写中时忽略 */
+  const start = useCallback(async () => {
+    if (!AVAILABLE || status !== 'idle' || permissionPendingRef.current) {
       return
     }
     permissionPendingRef.current = true
@@ -182,7 +172,22 @@ export const useVoiceInput = (onText: (text: string) => void) => {
         showToast(describeRecordingError(error))
       }
     }
-  }, [status, finish, cancel])
+  }, [status, finish])
+
+  const toggle = useCallback(async () => {
+    if (!AVAILABLE) {
+      return
+    }
+    if (status === 'recording') {
+      await finish()
+      return
+    }
+    if (status === 'transcribing') {
+      cancel()
+      return
+    }
+    await start()
+  }, [status, finish, cancel, start])
 
   useEffect(() => {
     if (status !== 'recording') {
@@ -202,5 +207,15 @@ export const useVoiceInput = (onText: (text: string) => void) => {
   /** 当前录音的频谱分析节点，未录音时为 null */
   const getAnalyser = useCallback(() => recordingRef.current?.analyser ?? null, [])
 
-  return { status, seconds, getAnalyser, toggle, cancel, available: AVAILABLE }
+  /** 按住说话：松手调用 stop 结束录音并转写 */
+  return {
+    status,
+    seconds,
+    getAnalyser,
+    start,
+    stop: finish,
+    toggle,
+    cancel,
+    available: AVAILABLE,
+  }
 }

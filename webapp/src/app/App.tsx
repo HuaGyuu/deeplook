@@ -11,6 +11,8 @@ import {
 } from '../services/chat/store.js'
 import { SearchPanel } from '../components/search/SearchPanel.js'
 import { GlobalSearch } from '../components/globalSearch/GlobalSearch.js'
+import { VoiceCall } from '../components/voiceCall/VoiceCall.js'
+import { closeVoiceCall, useVoiceCall } from '../components/voiceCall/voiceCallState.js'
 import { clearSearchTarget, closeGlobalSearch, useGlobalSearch } from '../components/globalSearch/globalSearchState.js'
 import { closeSearchPanel } from '../components/search/searchPanelState.js'
 import { SessionView } from '../components/session/SessionView.js'
@@ -96,6 +98,10 @@ export const App = () => {
   // 供原生返回键调用：设置页 / 移动端抽屉优先关闭，返回 true 表示已消费这次返回
   useEffect(() => {
     const handler = () => {
+      if (useVoiceCall.getState().open) {
+        closeVoiceCall()
+        return true
+      }
       if (useGlobalSearch.getState().open) {
         closeGlobalSearch()
         return true
@@ -192,6 +198,7 @@ export const App = () => {
         </main>
         <SearchPanel />
       </div>
+      <VoiceCall />
       <GlobalSearch />
       <SettingsDialog />
       <Toast />

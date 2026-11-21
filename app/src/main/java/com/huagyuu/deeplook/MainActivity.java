@@ -86,6 +86,10 @@ public class MainActivity extends AppCompatActivity {
     private ActivityResultLauncher<Intent> fileChooserLauncher;
     private ActivityResultLauncher<Intent> legacyDownloadLauncher;
     private ActivityResultLauncher<String> audioPermissionLauncher;
+    /** 拍照：相机把照片写进 cache/camera，结果再回传给页面 */
+    private ActivityResultLauncher<Intent> cameraLauncher;
+    private Uri pendingPhotoUri;
+    private File pendingPhotoFile;
 
     /** 旧系统（Android 9 及以下）走系统保存界面时，等用户选好目标位置再写入 */
     private File pendingDownloadFile;
@@ -206,6 +210,22 @@ public class MainActivity extends AppCompatActivity {
                     }
                     pendingDownloadFile = null;
                     pendingDownloadName = null;
+                });
+
+        cameraLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(), result -> {
+                    Uri uri = null;
+                    File photo = pendingPhotoFile;
+                    if (result.getResultCode() == RESULT_OK && pendingPhotoUri != null
+                            && photo != null && photo.exists() && photo.length() > 0) {
+                        uri = pendingPhotoUri;
+                    }
+                    pendingPhotoUri = null;
+                    pendingPhotoFile = null;
+                    if (fileCallback != null) {
+                        fileCallback.onReceiveValue(uri == null ? null : new Uri[]{uri});
+                        fileCallback = null;
+                    }
                 });
 
         audioPermissionLauncher = registerForActivityResult(
@@ -330,6 +350,9 @@ public class MainActivity extends AppCompatActivity {
                     fileCallback.onReceiveValue(null);
                 }
                 fileCallback = callback;
+                if (params.isCaptureEnabled() && launchCamera()) {
+                    return true;
+                }
                 Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
                 intent.addCategory(Intent.CATEGORY_OPENABLE);
                 intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
@@ -405,6 +428,33 @@ public class MainActivity extends AppCompatActivity {
         });
 
         webView.addJavascriptInterface(new AndroidBridge(this), BRIDGE_NAME);
+    }
+
+    /** 用系统相机拍照；没有可用相机应用时返回 false，退回文件选择器 */
+    private boolean launchCamera() {
+        try {
+            File dir = new File(getCacheDir(), "camera");
+            if (!dir.exists() && !dir.mkdirs()) {
+                return false;
+            }
+            File photo = new File(dir, "photo_" + System.currentTimeMillis() + ".jpg");
+            Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", photo);
+            Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+            intent.putExtra(MediaStore.EXTRA_OUTPUT, uri);
+            intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            if (intent.resolveActivity(getPackageManager()) == null) {
+                return false;
+            }
+            pendingPhotoUri = uri;
+            pendingPhotoFile = photo;
+            cameraLauncher.launch(intent);
+            return true;
+        } catch (Exception e) {
+            pendingPhotoUri = null;
+            pendingPhotoFile = null;
+            return false;
+        }
     }
 
     /** 把 accept 扩展名列表转换成系统文件选择器认识的 MIME 类型 */

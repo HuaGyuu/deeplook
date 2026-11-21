@@ -1,3 +1,9 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
 .wrapper {
   --line-height: 24px;
   --input-padding-top: 12px;
@@ -261,15 +267,15 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
-  height: 34px;
-  padding: 0 12px;
-  border-radius: 18px;
+  height: 32px;
+  padding: 0 11px;
+  border-radius: 16px;
   border: 1px solid var(--dsw-alias-border-l2);
   background-color: transparent;
   color: var(--dsw-alias-label-primary);
   font: inherit;
   font-size: 13px;
-  line-height: 20px;
+  line-height: 18px;
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
@@ -277,8 +283,10 @@
   transition-property: border, background;
   transition-duration: 0.2s;
 
-  &:hover:not(:disabled) {
-    background-color: var(--dsw-alias-interactive-bg-hover);
+  @media (hover: hover) {
+    &:hover:not(:disabled) {
+      background-color: var(--dsw-alias-interactive-bg-hover);
+    }
   }
 
   &:disabled {
@@ -291,8 +299,10 @@
     color: var(--dsw-alias-brand-text);
     border-color: var(--dsw-alias-button-ghost-active-border);
 
-    &:hover {
-      background-color: var(--dsw-alias-button-ghost-active-hover);
+    @media (hover: hover) {
+      &:hover {
+        background-color: var(--dsw-alias-button-ghost-active-hover);
+      }
     }
   }
 }
@@ -301,7 +311,7 @@
   display: flex;
   flex-shrink: 0;
   align-items: center;
-  gap: 4px;
+  gap: 12px;
   margin-left: auto;
 }
 
@@ -310,9 +320,9 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 34px;
-  height: 34px;
-  margin-left: 6px;
+  width: 30px;
+  height: 30px;
+  margin-left: 0;
   padding: 0;
   border: none;
   border-radius: 50%;
@@ -328,5 +338,197 @@
   &.disabled {
     opacity: 0.4;
     cursor: not-allowed;
+  }
+}
+
+/* 按住说话模式：大号可按住区域 + 底部细分隔线 */
+.holdToTalk {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 52px;
+  padding: 12px 16px 10px;
+  border: none;
+  background: none;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 22px;
+  text-align: center;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.holdToTalkActive {
+  color: var(--dsw-alias-brand-text);
+}
+
+.holdDivider {
+  height: 1px;
+  margin: 0 16px 2px;
+  background-color: var(--dsw-alias-border-l2);
+}
+
+/* 圆形描边按钮：加号 / 语音 / 键盘 */
+.roundButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1.4px solid var(--dsw-alias-label-primary);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  transition: background 0.2s ease;
+
+  @media (hover: hover) {
+    &:hover:not(:disabled) {
+      background-color: var(--dsw-alias-interactive-bg-hover);
+    }
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.roundButtonActive {
+  background-color: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* 加号展开的附件面板：从输入框下方滑出 */
+.attachPanel {
+  display: flex;
+  gap: 10px;
+  max-height: 0;
+  padding: 0 4px;
+  overflow: hidden;
+  opacity: 0;
+  cursor: default;
+  pointer-events: none;
+  transition:
+    max-height 0.26s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.18s ease,
+    padding 0.26s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.attachPanelOpen {
+  max-height: 120px;
+  padding: 0 4px 4px;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.attachAction {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-sizing: border-box;
+  min-width: 0;
+  height: 96px;
+  padding: 0 4px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 18px;
+  background-color: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+
+  @media (hover: hover) {
+    &:hover {
+      background-color: var(--dsw-alias-interactive-bg-hover);
+    }
+  }
+
+  svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  span {
+    white-space: nowrap;
+  }
+}
+
+
+/* 按住说话浮层：上白下蓝的渐变，文字与波形居中偏下 */
+.holdOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 950;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  box-sizing: border-box;
+  padding-bottom: 22vh;
+  border-radius: 28px 28px 0 0;
+  background:
+    radial-gradient(120% 80% at 50% 100%, rgba(96, 148, 255, 0.95) 0%, rgba(120, 168, 255, 0.75) 45%, rgba(214, 231, 255, 0.6) 72%, rgba(255, 255, 255, 0) 100%),
+    linear-gradient(180deg, #ffffff 0%, #eef4ff 34%, #c9dcff 58%, #7ba8ff 100%);
+  animation: holdOverlayIn 0.18s ease both;
+  user-select: none;
+  touch-action: none;
+}
+
+@keyframes holdOverlayIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.holdOverlayCancel {
+  background:
+    radial-gradient(120% 80% at 50% 100%, rgba(255, 126, 126, 0.95) 0%, rgba(255, 158, 158, 0.75) 45%, rgba(255, 226, 226, 0.6) 72%, rgba(255, 255, 255, 0) 100%),
+    linear-gradient(180deg, #ffffff 0%, #fff1f1 34%, #ffd7d7 58%, #ff9a9a 100%);
+}
+
+.holdOverlayText {
+  margin-bottom: 26px;
+  color: #fff;
+  font-size: 19px;
+  line-height: 28px;
+  font-weight: 500;
+  text-shadow: 0 1px 6px rgba(38, 74, 148, 0.35);
+}
+
+/* 覆盖 Spectrum 默认的绝对定位：浮层里作为普通流内容放在文字下方 */
+.holdOverlay .holdOverlayWave {
+  position: static;
+  translate: none;
+  left: auto;
+  right: auto;
+  width: min(320px, 78vw);
+  height: 34px;
+  opacity: 0.92;
+  margin-top: 4px;
+
+  .bar {
+    background-color: #fff;
   }
 }
