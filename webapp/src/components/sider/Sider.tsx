@@ -1,10 +1,18 @@
 import clsx from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
-import { IconPanelLeftOutline16, IconSearchOutline16, IconSelectOutline16, IconSettingsOutline16, NewChatIcon } from '../base/icons.js'
+import {
+  IconCloseOutline16,
+  IconPanelLeftOutline16,
+  IconPinOutline16,
+  IconSearchOutline16,
+  IconSelectOutline16,
+  IconSettingsOutline16,
+  NewChatIcon,
+} from '../base/icons.js'
 import { openGlobalSearch } from '../globalSearch/globalSearchState.js'
 import { setSiderCollapsed } from '../../services/settings.js'
-import { usePinnedSessions } from '../../services/pins.js'
+import { setPinnedSessions, usePinnedSessions } from '../../services/pins.js'
 import { groupSessions } from '../../services/chat/sessionGroups.js'
 import { newChat, removeSession, useChatStore } from '../../services/chat/store.js'
 import type { SessionSummary } from '../../services/chat/types.js'
@@ -56,6 +64,21 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
   }
 
   const allSelected = sessions.length > 0 && selectedIds.size >= sessions.length
+  const allSelectedPinned =
+    selectedIds.size > 0 && [...selectedIds].every((id) => pinnedIds.includes(id))
+  /** 批量置顶：选中的已全部置顶时改为取消置顶 */
+  const pinSelected = () => {
+    const ids = [...selectedIds]
+    if (ids.length === 0) {
+      return
+    }
+    const unpin = ids.every((id) => pinnedIds.includes(id))
+    setPinnedSessions(ids, !unpin)
+    showToast({
+      key: unpin ? 'sessionsUnpinned' : 'sessionsPinned',
+      params: { count: ids.length },
+    })
+  }
   const toggleSelectAll = () => {
     setSelectedIds(allSelected ? new Set() : new Set(sessions.map((session) => session.id)))
   }
@@ -167,9 +190,21 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
               <button type="button" className={styles.toolbarAction} onClick={toggleSelectAll}>
                 {allSelected ? t('clearSelection') : t('selectAll')}
               </button>
-              <button type="button" className={styles.toolbarAction} onClick={exitSelect}>
-                {t('cancel')}
-              </button>
+              <IconButton
+                size="xs"
+                icon={<IconPinOutline16 />}
+                tooltip={allSelectedPinned ? t('unpinSession') : t('pinSession')}
+                tooltipPlacement="bottom"
+                disabled={selectedIds.size === 0}
+                onClick={pinSelected}
+              />
+              <IconButton
+                size="xs"
+                icon={<IconCloseOutline16 />}
+                tooltip={t('cancel')}
+                tooltipPlacement="bottom"
+                onClick={exitSelect}
+              />
               <Button
                 variant="danger"
                 size="s"
@@ -320,4 +355,5 @@ export const MobileSider = () => {
     </>
   )
 }
+
 

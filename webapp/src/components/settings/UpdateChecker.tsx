@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
-import { APP_VERSION } from '../../services/appVersion.js'
 import {
   checkLatestRelease,
   downloadAndInstall,
@@ -20,7 +19,10 @@ type UpdateState =
   | 'installing'
   | 'error'
 
-/** 关于页的检查更新：检查 GitHub 最新 Release，Android 上可下载并拉起安装器。 */
+/**
+ * 关于页的版本更新：一行「版本更新 + 检查更新按钮」，
+ * 当前版本号在上方标题区已经展示过，这里不再重复。
+ */
 export const UpdateChecker = () => {
   const t = useTranslate()
   const [state, setState] = useState<UpdateState>('idle')
@@ -77,19 +79,18 @@ export const UpdateChecker = () => {
   const busy = state === 'checking' || state === 'downloading'
   return (
     <div className={styles.box}>
-      <div className={styles.versionRow}>
-        <span>{t('currentVersion')}</span>
-        <span className={styles.version}>{APP_VERSION}</span>
-      </div>
-      <div className={styles.actions}>
-        <Button variant="outlined" size="m" disabled={busy} onClick={() => void check()}>
-          {t(state === 'checking' ? 'checkingUpdate' : 'checkUpdate')}
-        </Button>
-        {state === 'available' ? (
-          <Button size="m" onClick={install}>
-            {t('downloadAndInstall')}
+      <div className={styles.row}>
+        <span className={styles.label}>{t('versionUpdate')}</span>
+        <div className={styles.actions}>
+          {state === 'available' ? (
+            <Button size="s" onClick={install}>
+              {t('downloadAndInstall')}
+            </Button>
+          ) : null}
+          <Button variant="outlined" size="s" disabled={busy} onClick={() => void check()}>
+            {t(state === 'checking' ? 'checkingUpdate' : 'checkUpdate')}
           </Button>
-        ) : null}
+        </div>
       </div>
       <div className={styles.status} role="status" aria-live="polite">
         {state === 'latest' ? t('upToDate') : null}

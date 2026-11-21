@@ -25,6 +25,17 @@ export const usePinnedSessions = create<{ ids: string[] }>(() => ({ ids: read() 
 
 export const isPinnedSession = (ids: string[], id: string) => ids.includes(id)
 
+/** 批量置顶/取消置顶；保持原有顺序，新置顶的追加到末尾 */
+export const setPinnedSessions = (ids: string[], pinned: boolean) => {
+  usePinnedSessions.setState((state) => {
+    const next = pinned
+      ? [...state.ids, ...ids.filter((id) => !state.ids.includes(id))]
+      : state.ids.filter((id) => !ids.includes(id))
+    write(next)
+    return { ids: next }
+  })
+}
+
 export const togglePinnedSession = (id: string) => {
   usePinnedSessions.setState((state) => {
     const next = state.ids.includes(id)
@@ -34,3 +45,4 @@ export const togglePinnedSession = (id: string) => {
     return { ids: next }
   })
 }
+

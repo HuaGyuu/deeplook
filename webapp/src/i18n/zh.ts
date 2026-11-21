@@ -47,6 +47,9 @@ export const zh = {
   selectedCount: '已选 {count} 项',
   selectAll: '全选',
   clearSelection: '取消全选',
+  sessionsPinned: '已置顶 {count} 个对话',
+  sessionsUnpinned: '已取消置顶 {count} 个对话',
+  versionUpdate: '版本更新',
   sessionsDeleted: '已删除 {count} 个对话',
   sessionsDeleteFailed: '有 {count} 个对话删除失败，请重试',
   deletingSessions: '删除中…',
@@ -283,6 +286,7 @@ export const zh = {
   settingsLocaleZhCN: '简体中文',
   settingsLocaleEnUS: 'English',
 } as const
+
 
 
 

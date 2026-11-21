@@ -50,6 +50,9 @@ export const en = {
   selectedCount: '{count} selected',
   selectAll: 'Select all',
   clearSelection: 'Clear',
+  sessionsPinned: 'Pinned {count} chats',
+  sessionsUnpinned: 'Unpinned {count} chats',
+  versionUpdate: 'Version update',
   sessionsDeleted: 'Deleted {count} chats',
   sessionsDeleteFailed: '{count} chats failed to delete. Please try again.',
   deletingSessions: 'Deleting…',
@@ -291,6 +294,7 @@ export const en = {
   settingsLocaleZhCN: 'Simplified Chinese',
   settingsLocaleEnUS: 'English',
 } satisfies Record<keyof typeof zh, string>
+
 
 
 
