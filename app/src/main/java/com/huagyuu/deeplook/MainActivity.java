@@ -1101,7 +1101,10 @@ public class MainActivity extends AppCompatActivity {
             AudioTrack track = ttsTrack;
             if (track != null && !ttsCancelled) {
                 try {
-                    long deadline = System.currentTimeMillis() + 180000;
+                    // 等待时长按音频实际长度算，避免异常状态下死等
+                    long maxWait = Math.min(60000L,
+                            ttsFramesWritten * 1000L / Math.max(1, ttsOutRate) + 4000L);
+                    long deadline = System.currentTimeMillis() + maxWait;
                     while (!ttsCancelled && System.currentTimeMillis() < deadline) {
                         long played = track.getPlaybackHeadPosition() & 0xFFFFFFFFL;
                         if (played >= ttsFramesWritten - ttsOutRate / 20L) {
@@ -1203,13 +1206,22 @@ public class MainActivity extends AppCompatActivity {
         resampleAndPlay(track, false);
     }
 
-    /** 收尾：把最后一个样本也用上，避免尾部丢音 */
+    /** 收尾：把最后一个样本也用上，避免尾部丢音；短音频没到预缓冲阈值也要播出来 */
     private void flushRemainder() {
         AudioTrack track = ttsTrack;
         if (track == null) {
             return;
         }
         resampleAndPlay(track, true);
+        if (!ttsPlaying && ttsFramesWritten > 0) {
+            try {
+                track.play();
+                ttsPlaying = true;
+                ttsLog("play on flush frames=" + ttsFramesWritten);
+            } catch (Exception e) {
+                ttsLog("play on flush failed " + e);
+            }
+        }
     }
 
     private void appendSample(short sample) {

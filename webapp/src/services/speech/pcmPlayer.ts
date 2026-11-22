@@ -87,7 +87,24 @@ export const createPcmPlayer = (sampleRate: number): PcmPlayer => {
             resolve()
             return
           }
-          endedResolver = resolve
+          let settled = false
+          const done = () => {
+            if (settled) {
+              return
+            }
+            settled = true
+            window.clearTimeout(timer)
+            if (endedResolver === done) {
+              endedResolver = null
+            }
+            resolve()
+          }
+          // 兜底：原生长时间不回调时也要结束，避免界面一直停在“正在回答”
+          const timer = window.setTimeout(() => {
+            native.ttsCancel?.()
+            done()
+          }, 20000)
+          endedResolver = done
           native.ttsEnd?.()
         }),
       cancel: () => {
