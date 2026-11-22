@@ -123,6 +123,10 @@ public class MainActivity extends AppCompatActivity {
     /** 兼容模式：WebView 用软件渲染（部分机型硬件合成会黑屏），持久化到下次启动 */
     private boolean compatSoftware;
     private boolean splashCreated;
+    /** 调试版常驻诊断条：每秒刷新原生状态 + 页面内诊断 */
+    private TextView diagPanel;
+    private final List<String> consoleLines = new ArrayList<>();
+    private String lastPageDiag = "js=pending";
 
     private final Runnable watchdogTask = new Runnable() {
         @Override
@@ -132,6 +136,13 @@ public class MainActivity extends AppCompatActivity {
             }
             bootAttempt++;
             lastBootReason = "timeout";
+            if (DIAG_BUILD) {
+                pushConsole("boot-timeout p=" + loadProgress + " rdy=" + (pageReady ? 1 : 0));
+                if (splashCreated && splashView != null) {
+                    splashStatus.setText("加载超时 p=" + loadProgress + "（点这里手动重试）");
+                }
+                return;
+            }
             if (bootAttempt == 1) {
                 diag("boot-timeout-1");
                 if (splashCreated && splashView != null) {
@@ -199,11 +210,15 @@ public class MainActivity extends AppCompatActivity {
         rootView.addView(webView);
         if (DIAG_BUILD) {
             buildSplashView();
+            buildDiagPanel();
         }
         setContentView(rootView);
 
         registerLaunchers();
         loadApp();
+        if (DIAG_BUILD) {
+            mainHandler.postDelayed(diagTick, 800);
+        }
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
@@ -442,9 +457,14 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onReceivedError(WebView view, WebResourceRequest request,
                                         WebResourceError error) {
+                String detail = "res-error " + error.getErrorCode() + " "
+                        + error.getDescription() + " " + shorten(request.getUrl().toString(), 60);
                 if (request.isForMainFrame()) {
                     pageReady = false;
                     diag("load-error " + error.getErrorCode() + " " + error.getDescription());
+                }
+                if (DIAG_BUILD) {
+                    pushConsole(detail);
                 }
             }
 
@@ -542,6 +562,11 @@ public class MainActivity extends AppCompatActivity {
                 if (BuildConfig.DEBUG) {
                     android.util.Log.d("ChatWebView",
                             message.message() + " @" + message.sourceId() + ":" + message.lineNumber());
+                }
+                if (DIAG_BUILD) {
+                    String line = message.messageLevel() + ":" + message.message()
+                            + " @" + message.sourceId() + ":" + message.lineNumber();
+                    pushConsole(line);
                 }
                 return true;
             }
@@ -1126,6 +1151,11 @@ public class MainActivity extends AppCompatActivity {
                 value -> {
                     if (value != null && value.contains("empty")) {
                         diag("blank-page");
+                        if (DIAG_BUILD) {
+                            // 调试版保留失败现场：只记录，不自动重载，方便截图定位
+                            pushConsole("blank-page root=0");
+                            return;
+                        }
                         if (!repairedOnce) {
                             repairedOnce = true;
                             recreateWebView(true);
@@ -1203,6 +1233,111 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         splashView.setVisibility(View.GONE);
+    }
+
+    private void pushConsole(String line) {
+        String text = line.replaceAll("\\s+", " ");
+        if (text.length() > 160) {
+            text = text.substring(0, 160);
+        }
+        consoleLines.add(text);
+        if (consoleLines.size() > 4) {
+            consoleLines.remove(0);
+        }
+    }
+
+    /** 调试版诊断条：贴在屏幕底部，黑屏时也能看到状态 */
+    private void buildDiagPanel() {
+        float density = getResources().getDisplayMetrics().density;
+        TextView panel = new TextView(this);
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.gravity = Gravity.BOTTOM;
+        panel.setLayoutParams(params);
+        panel.setBackgroundColor(0xD9000000);
+        panel.setTextColor(0xFF9BFF9B);
+        panel.setTextSize(TypedValue.COMPLEX_UNIT_SP, 9);
+        panel.setTypeface(android.graphics.Typeface.MONOSPACE);
+        panel.setPadding((int) (8 * density), (int) (6 * density),
+                (int) (8 * density), (int) (6 * density));
+        panel.setText("diag starting");
+        panel.setOnClickListener(v -> {
+            // 点一下隐藏诊断条，长按再显示，避免挡住操作
+            panel.setVisibility(panel.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+        });
+        diagPanel = panel;
+        rootView.addView(panel);
+    }
+
+    private final Runnable diagTick = new Runnable() {
+        @Override
+        public void run() {
+            if (!DIAG_BUILD || isFinishing() || isDestroyed()) {
+                return;
+            }
+            refreshDiagPanel();
+            mainHandler.postDelayed(this, 1000);
+        }
+    };
+
+    private void refreshDiagPanel() {
+        TextView panel = diagPanel;
+        if (panel == null) {
+            return;
+        }
+        StringBuilder native_ = new StringBuilder();
+        native_.append("p=").append(loadProgress)
+                .append(" rdy=").append(pageReady ? 1 : 0)
+                .append(" att=").append(bootAttempt)
+                .append(" sw=").append(compatSoftware ? 1 : 0)
+                .append(" splash=").append(splashView == null ? 0
+                        : (splashView.getVisibility() == View.VISIBLE ? 1 : 0))
+                .append(" night=").append(isDarkMode() ? 1 : 0)
+                .append(" wv=").append(webViewVersion());
+        if (webView != null) {
+            native_.append("\nurl=").append(shorten(webView.getUrl(), 60))
+                    .append(" title=").append(shorten(webView.getTitle(), 30))
+                    .append(" h=").append(webView.getContentHeight());
+        }
+        StringBuilder text = new StringBuilder(native_);
+        text.append('\n').append(lastPageDiag);
+        if (!consoleLines.isEmpty()) {
+            text.append('\n').append("c=").append(consoleLines.get(consoleLines.size() - 1));
+        }
+        panel.setText(text.toString());
+
+        WebView target = webView;
+        if (target == null) {
+            return;
+        }
+        target.evaluateJavascript(
+                "(window.__deeplookDiagReport ? window.__deeplookDiagReport() : 'bundle-not-run')",
+                value -> {
+                    if (value == null) {
+                        lastPageDiag = "js=null";
+                        return;
+                    }
+                    try {
+                        // evaluateJavascript 返回 JSON 字符串，去掉首尾引号并反转义
+                        String raw = new org.json.JSONArray("[" + value + "]").optString(0);
+                        lastPageDiag = raw == null || raw.isEmpty() ? "js=empty" : raw;
+                    } catch (Exception e) {
+                        lastPageDiag = "js=parse-fail " + shorten(value, 60);
+                    }
+                    if (diagPanel != null) {
+                        diagPanel.setText(native_.toString() + '\n' + lastPageDiag
+                                + (consoleLines.isEmpty() ? ""
+                                : '\n' + "c=" + consoleLines.get(consoleLines.size() - 1)));
+                    }
+                });
+    }
+
+    private static String shorten(@Nullable String text, int limit) {
+        if (text == null) {
+            return "-";
+        }
+        String flat = text.replaceAll("\\s+", " ");
+        return flat.length() <= limit ? flat : flat.substring(0, limit) + "…";
     }
 
     /** 记录兼容模式（软件渲染）选择 */
@@ -1296,6 +1431,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        mainHandler.removeCallbacks(diagTick);
         closeDownloadStream();
         if (webView != null) {
             webView.removeJavascriptInterface(BRIDGE_NAME);

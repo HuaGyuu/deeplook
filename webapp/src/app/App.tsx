@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useTranslate } from '../i18n/index.js'
+import { markMounted, noteReady } from '../services/bootDiag.js'
 import { useSettings } from '../services/settings.js'
 import { useIsMobile, useMobileViewport, usePreventPageScroll, useSwipeSider } from './viewport.js'
 import {
@@ -88,6 +89,11 @@ export const App = () => {
   useEffect(stopReadAloud, [activeId])
   // 移动端选中会话、切换布局后收起抽屉
   useEffect(closeMobileSider, [activeId, isMobile])
+
+  useEffect(() => {
+    markMounted()
+    noteReady(ready)
+  }, [ready])
 
   useEffect(() => {
     void initChat()
