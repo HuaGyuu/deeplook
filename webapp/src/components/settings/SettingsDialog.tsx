@@ -29,17 +29,21 @@ import { WECHAT_QR_DATA_URL } from '../../assets/wechatQrData.js'
 import { openExternalUrl } from '../../services/externalLink.js'
 import { useChatStore } from '../../services/chat/store.js'
 import { importHistoryFromUrl, validateHistoryUrl } from '../../services/chat/historyImportUrl.js'
+import {
+  addPersona,
+  deletePersona,
+  updatePersona,
+  usePersonas,
+} from '../../services/personas.js'
 import { regionCodes, getRegionName, provinces } from '../../services/location.js'
 import {
   isChineseBrowser,
-  setAiPersona,
   setChatBackground,
   setChatBackgroundAdjust,
   setLocale,
   setLocation,
   setThemePreference,
   setTtsVoice,
-  setUserPersona,
   useSettings,
   type ThemePreference,
 } from '../../services/settings.js'
@@ -178,6 +182,7 @@ const SettingsPageView = () => {
 /** 设置首页：分组列表，点每一项进入二级页面（类似 iOS 设置） */
 const SettingsRoot = ({ onNavigate }: { onNavigate: (page: SettingsPage) => void }) => {
   const t = useTranslate()
+  const personaCount = usePersonas((state) => state.personas.length)
   const settings = useSettings()
   const themeLabel =
     settings.themePreference === 'light'
@@ -217,7 +222,7 @@ const SettingsRoot = ({ onNavigate }: { onNavigate: (page: SettingsPage) => void
           page: 'persona',
           icon: <IconPersonOutline16 />,
           label: t('personaSettings'),
-          value: settings.userPersona || settings.aiPersona ? t('valueSet') : '',
+          value: personaCount > 0 ? String(personaCount) : '',
         },
         {
           page: 'personalization',
@@ -292,47 +297,179 @@ const SettingsRoot = ({ onNavigate }: { onNavigate: (page: SettingsPage) => void
   )
 }
 
-/** 人设设置：AI 人设 + 用户人设，改完立即保存，每次请求注入系统提示 */
+/** 人设：多套 AI 人设（名称 + 内容 + 可选封面），新建对话时选一个注入系统提示 */
 const PersonaSettings = () => {
   const t = useTranslate()
-  const userPersona = useSettings((state) => state.userPersona)
-  const aiPersona = useSettings((state) => state.aiPersona)
-  const [saved, setSaved] = useState(false)
+  const personas = usePersonas((state) => state.personas)
+  const selectedId = usePersonas((state) => state.selectedId)
+  const [editingId, setEditingId] = useState<string | 'new' | null>(null)
+  const [draft, setDraft] = useState<{ name: string; content: string; cover: string | null }>({
+    name: '',
+    content: '',
+    cover: null,
+  })
+  const [busy, setBusy] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const openNew = () => {
+    setDraft({ name: '', content: '', cover: null })
+    setEditingId('new')
+  }
+  const openEdit = (id: string) => {
+    const persona = personas.find((item) => item.id === id)
+    if (!persona) {
+      return
+    }
+    setDraft({ name: persona.name, content: persona.content, cover: persona.cover })
+    setEditingId(id)
+  }
+  const save = () => {
+    if (editingId === null) {
+      return
+    }
+    if (editingId === 'new') {
+      addPersona(draft.name, draft.content, draft.cover)
+    } else {
+      updatePersona(editingId, draft)
+    }
+    setEditingId(null)
+  }
+  const pickCover = async (file: File | undefined) => {
+    if (!file) {
+      return
+    }
+    setBusy(true)
+    try {
+      const cover = await compressPersonaCover(file)
+      setDraft((current) => ({ ...current, cover }))
+    } catch {
+      showToast({ key: 'chatBackgroundFailed', type: 'error' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (editingId !== null) {
+    return (
+      <div className={styles.subpage}>
+        <p className={styles.subpageHint}>{t('personaDefaultHint')}</p>
+        <label className={styles.fieldBlock}>
+          <span className={styles.fieldLabel}>{t('personaNameLabel')}</span>
+          <input
+            className={styles.personaInput}
+            value={draft.name}
+            placeholder={t('personaNamePlaceholder')}
+            onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+          />
+        </label>
+        <label className={styles.fieldBlock}>
+          <span className={styles.fieldLabel}>{t('personaContentLabel')}</span>
+          <textarea
+            className={styles.textarea}
+            rows={7}
+            value={draft.content}
+            placeholder={t('personaContentPlaceholder')}
+            onChange={(event) => setDraft({ ...draft, content: event.target.value })}
+          />
+        </label>
+        <div className={styles.coverRow}>
+          <button
+            type="button"
+            className={styles.coverPreview}
+            aria-label={t('personaCoverPick')}
+            onClick={() => fileRef.current?.click()}
+          >
+            {draft.cover ? (
+              <img src={draft.cover} alt="" />
+            ) : (
+              <span>{draft.name.trim() || t('personaCoverPick')}</span>
+            )}
+          </button>
+          <div className={styles.coverActions}>
+            <Button variant="outlined" size="s" disabled={busy} onClick={() => fileRef.current?.click()}>
+              {t('personaCoverPick')}
+            </Button>
+            {draft.cover ? (
+              <Button variant="outlined" size="s" onClick={() => setDraft({ ...draft, cover: null })}>
+                {t('personaCoverClear')}
+              </Button>
+            ) : null}
+          </div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(event) => {
+              void pickCover(event.target.files?.[0])
+              event.target.value = ''
+            }}
+          />
+        </div>
+        <div className={styles.subpageActions}>
+          {editingId !== 'new' ? (
+            <Button
+              variant="dangerOutlined"
+              size="m"
+              onClick={() => {
+                deletePersona(editingId)
+                setEditingId(null)
+              }}
+            >
+              {t('personaDelete')}
+            </Button>
+          ) : (
+            <span />
+          )}
+          <span className={styles.personaEditorActions}>
+            <Button variant="outlined" size="m" onClick={() => setEditingId(null)}>
+              {t('cancel')}
+            </Button>
+            <Button variant="primary" size="m" onClick={save}>
+              {t('save')}
+            </Button>
+          </span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={styles.subpage}>
-      <p className={styles.subpageHint}>{t('personaHint')}</p>
-      <label className={styles.fieldBlock}>
-        <span className={styles.fieldLabel}>{t('personaAiLabel')}</span>
-        <textarea
-          className={styles.textarea}
-          rows={5}
-          value={aiPersona}
-          placeholder={t('personaAiPlaceholder')}
-          onChange={(event) => {
-            setAiPersona(event.target.value)
-            setSaved(false)
-          }}
-        />
-      </label>
-      <label className={styles.fieldBlock}>
-        <span className={styles.fieldLabel}>{t('personaUserLabel')}</span>
-        <textarea
-          className={styles.textarea}
-          rows={5}
-          value={userPersona}
-          placeholder={t('personaUserPlaceholder')}
-          onChange={(event) => {
-            setUserPersona(event.target.value)
-            setSaved(false)
-          }}
-        />
-      </label>
-      <div className={styles.subpageActions}>
-        <span className={styles.saveHint}>{saved ? t('saved') : ''}</span>
-        <Button variant="primary" size="m" onClick={() => setSaved(true)}>
-          {t('save')}
+      <div className={styles.personaHeader}>
+        <p className={styles.subpageHint}>{t('personaDefaultHint')}</p>
+        <Button variant="outlined" size="s" onClick={openNew}>
+          {t('personaAdd')}
         </Button>
       </div>
+      {personas.length === 0 ? (
+        <p className={styles.personaEmpty}>{t('personaEmptyList')}</p>
+      ) : (
+        <div className={styles.personaList}>
+          {personas.map((persona) => (
+            <button
+              key={persona.id}
+              type="button"
+              className={styles.personaCard}
+              onClick={() => openEdit(persona.id)}
+            >
+              <span
+                className={clsx(
+                  styles.personaCover,
+                  persona.id === selectedId && styles.personaCoverActive
+                )}
+              >
+                {persona.cover ? (
+                  <img src={persona.cover} alt="" />
+                ) : (
+                  <span className={styles.personaCoverText}>{persona.name}</span>
+                )}
+              </span>
+              <span className={styles.personaName}>{persona.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -345,6 +482,37 @@ const compressImage = (file: File): Promise<string> =>
     image.onload = () => {
       try {
         const maxSide = 1600
+        const scale = Math.min(1, maxSide / Math.max(image.width, image.height))
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.max(1, Math.round(image.width * scale))
+        canvas.height = Math.max(1, Math.round(image.height * scale))
+        const context = canvas.getContext('2d')
+        if (!context) {
+          throw new Error('canvas unavailable')
+        }
+        context.drawImage(image, 0, 0, canvas.width, canvas.height)
+        resolve(canvas.toDataURL('image/jpeg', 0.82))
+      } catch (error) {
+        reject(error instanceof Error ? error : new Error(String(error)))
+      } finally {
+        URL.revokeObjectURL(objectUrl)
+      }
+    }
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      reject(new Error('image load failed'))
+    }
+    image.src = objectUrl
+  })
+
+/** 人设封面：压到 480px 以内再存，避免撑爆 localStorage */
+const compressPersonaCover = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file)
+    const image = new Image()
+    image.onload = () => {
+      try {
+        const maxSide = 480
         const scale = Math.min(1, maxSide / Math.max(image.width, image.height))
         const canvas = document.createElement('canvas')
         canvas.width = Math.max(1, Math.round(image.width * scale))

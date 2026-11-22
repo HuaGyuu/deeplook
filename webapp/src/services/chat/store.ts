@@ -5,6 +5,7 @@ import type { CreateMessageRequest } from '../api/types.js'
 import { extractFileIds, getFileErrorCode, isRetryableApiError } from '../api/errors.js'
 import { cancelUpload, describeUploadError, uploadAttachment, useUploads } from '../attachments.js'
 import { useSettings } from '../settings.js'
+import { getSelectedPersona } from '../personas.js'
 import { getConnection, PROTOCOL_ANTHROPIC } from '../providers.js'
 import { appendBranch, getVisibleMessages, normalizeSession, selectVersion } from './branches.js'
 import * as db from './db.js'
@@ -37,18 +38,16 @@ import {
  * 系统提示只放人设与压缩摘要，不再固定声明助手身份；
  * 两者都没有时返回空串，请求里也不带 system 字段。
  */
-const buildSystemPrompt = (summary?: string): string => {
-  const { userPersona, aiPersona } = useSettings.getState()
+const buildSystemPrompt = (
+  summary?: string,
+  personaName?: string | null,
+  personaContent?: string | null
+): string => {
   const parts: string[] = []
-  const persona: string[] = []
-  if (aiPersona.trim()) {
-    persona.push(`AI 人设：${aiPersona.trim()}`)
-  }
-  if (userPersona.trim()) {
-    persona.push(`用户人设：${userPersona.trim()}`)
-  }
-  if (persona.length > 0) {
-    parts.push(`请始终遵循以下人设设定：\n${persona.join('\n')}`)
+  const content = personaContent?.trim() ?? ''
+  if (content) {
+    const label = personaName?.trim() ? `「${personaName.trim()}」` : ''
+    parts.push(`请始终遵循以下人设${label}设定：\n${content}`)
   }
   if (summary?.trim()) {
     parts.push(`以下是此前对话的压缩摘要，请把它视为已经发生的上下文并继续对话：\n${summary.trim()}`)
@@ -506,6 +505,7 @@ export const newChat = () => {
 /** 用压缩摘要开启一个新会话；摘要只进入请求的 system prompt，不显示为消息。 */
 export const createCompressedSession = (title: string, summary: string): string => {
   const now = Date.now()
+  const persona = getSelectedPersona()
   const session: Session = {
     id: createId(),
     title: title.trim() || '压缩对话',
@@ -514,6 +514,8 @@ export const createCompressedSession = (title: string, summary: string): string 
     messages: [],
     rootMessageId: null,
     summary,
+    personaName: persona?.name ?? null,
+    personaContent: persona?.content ?? null,
   }
   touchSession(session.id)
   set((state) => ({
@@ -638,6 +640,7 @@ export const sendMessage = (targetSessionId: string | null) => {
   }
   const { text, files } = prepared
   const now = Date.now()
+  const persona = getSelectedPersona()
   let sessionId = targetSessionId
   if (
     sessionId !== null &&
@@ -657,6 +660,8 @@ export const sendMessage = (targetSessionId: string | null) => {
       updatedAt: now,
       messages: [],
       rootMessageId: null,
+      personaName: persona?.name ?? null,
+      personaContent: persona?.content ?? null,
     }
     sessionId = session.id
     touchSession(session.id)
@@ -1092,7 +1097,12 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
         // 只保留模型、系统提示与消息；标题在发送时已按首条消息本地生成。
         const custom = getConnection().protocol !== PROTOCOL_ANTHROPIC
         // 没有人设与压缩摘要时不发送 system 字段，避免出现空的系统提示
-        const system = buildSystemPrompt(getSession(sessionId)?.summary)
+        const activeSession = getSession(sessionId)
+        const system = buildSystemPrompt(
+          activeSession?.summary,
+          activeSession?.personaName,
+          activeSession?.personaContent
+        )
         const systemField = system ? { system } : {}
         const events = streamMessage(
           useSettings.getState().apiKey ?? '',

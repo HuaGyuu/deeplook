@@ -116,6 +116,9 @@ export type Session = {
   rootMessageId?: string | null
   /** 压缩上下文生成的摘要；仅作为后续请求的系统上下文，不显示为普通消息。 */
   summary?: string
+  /** 建会话时选中的人设快照（之后改人设不影响已有对话）。 */
+  personaName?: string | null
+  personaContent?: string | null
 }
 
 /** 会话列表元数据；消息只在打开会话时加载。 */
