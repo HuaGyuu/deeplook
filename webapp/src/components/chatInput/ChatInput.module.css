@@ -416,6 +416,7 @@
   display: flex;
   gap: 10px;
   max-height: 0;
+  margin-top: 0;
   padding: 0 4px;
   overflow: hidden;
   opacity: 0;
@@ -424,11 +425,14 @@
   transition:
     max-height 0.26s cubic-bezier(0.2, 0.8, 0.2, 1),
     opacity 0.18s ease,
+    margin-top 0.26s cubic-bezier(0.2, 0.8, 0.2, 1),
     padding 0.26s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+/* 展开时和输入框之间留出间距，卡片不要贴着输入框 */
 .attachPanelOpen {
-  max-height: 120px;
+  max-height: 130px;
+  margin-top: 12px;
   padding: 0 4px 4px;
   opacity: 1;
   pointer-events: auto;
