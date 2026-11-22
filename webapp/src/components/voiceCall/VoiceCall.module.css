@@ -9,7 +9,7 @@
     calc(env(safe-area-inset-bottom, 0px) + 22px);
   overflow: hidden;
   /* 左上白 → 右下蓝 */
-  background: linear-gradient(135deg, #ffffff 0%, #f4f9ff 26%, #d8e8fb 58%, #8fb6e6 82%, #6b9ad4 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #f7fbff 30%, #e6f0fc 64%, #c2d8f2 100%);
   color: #1d2430;
   animation: voiceCallIn 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
@@ -44,11 +44,11 @@
 }
 
 .glowB {
-  bottom: -140px;
-  right: -100px;
-  width: 380px;
-  height: 380px;
-  background: rgba(86, 137, 208, 0.55);
+  bottom: -120px;
+  right: -90px;
+  width: 260px;
+  height: 260px;
+  background: rgba(86, 137, 208, 0.38);
 }
 
 .topBar {
@@ -158,44 +158,34 @@
   padding: 0;
   border: none;
   border-radius: 50%;
-  /* 圆环本身：彩虹渐变，中间由 .orbInner 的白色圆盖住，留下细环 */
-  background: conic-gradient(from 190deg, #8fe8d8, #7fc4ff, #a99bff, #8fe8d8);
-  box-shadow:
-    0 20px 54px rgba(104, 137, 200, 0.26),
-    0 0 0 10px rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 18px 48px rgba(104, 137, 200, 0.16);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 
-  /* 两侧的波形装饰，对应参考图圆环左右的小音条 */
-  &::before,
-  &::after {
+  /* 朦胧的渐变环：模糊的渐变色晕，不用清晰描边 */
+  &::before {
     content: '';
     position: absolute;
-    top: 50%;
-    width: 46px;
-    height: 26px;
-    transform: translateY(-50%);
-    background-image: repeating-linear-gradient(
-      to right,
-      rgba(120, 158, 214, 0.55) 0 2px,
-      transparent 2px 5px
+    inset: -12px;
+    z-index: 0;
+    border-radius: 50%;
+    background: conic-gradient(
+      from 195deg,
+      rgba(159, 232, 219, 0.95),
+      rgba(150, 196, 247, 0.95),
+      rgba(186, 168, 246, 0.95),
+      rgba(159, 232, 219, 0.95)
     );
-    -webkit-mask-image: linear-gradient(to right, transparent, #000 30%, #000 70%, transparent);
-    mask-image: linear-gradient(to right, transparent, #000 30%, #000 70%, transparent);
-  }
-
-  &::before {
-    left: -54px;
-  }
-
-  &::after {
-    right: -54px;
+    filter: blur(17px);
+    opacity: 0.85;
   }
 }
 
 .orbInner {
   position: absolute;
-  inset: 4px;
+  inset: 7px;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -284,20 +274,15 @@
   -webkit-user-select: none;
   touch-action: none;
   cursor: pointer;
-  box-shadow:
-    0 12px 28px rgba(104, 137, 200, 0.2),
-    inset 0 1px 0 #fff;
-  transition: transform 0.12s ease, background 0.2s ease;
-
-  &:active {
-    transform: scale(0.985);
-  }
+  box-shadow: 0 12px 28px rgba(104, 137, 200, 0.16);
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
 }
 
 .talkBtnActive {
-  background: linear-gradient(180deg, #7fa8f0, #5b83d8);
-  border-color: transparent;
-  color: #fff;
+  background: #bed4f2;
+  border-color: rgba(150, 180, 230, 0.55);
+  color: #223650;
 }
 
 .controls {
