@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react'
+import { isNativeShell } from '../services/externalLink.js'
 import {
   finishMobileSiderDrag,
   setMobileSiderDrag,
@@ -58,12 +59,16 @@ export const useMobileViewport = (enabled: boolean) => {
 
   useLayoutEffect(() => {
     const frame = frameRef.current
-    if (!enabled || !frame) {
+    // 安卓壳里键盘由原生 insets 让 WebView 本身缩高，页面用 100vh 就够；
+    // 如果再用视觉视口去改高度，键盘动画中间帧会拿到偏小的值，出现一帧布局错乱。
+    if (!enabled || !frame || isNativeShell()) {
       return
     }
     const viewport = window.visualViewport
     const inputSelector = 'textarea, input:not([type="file"])'
     let animationFrame = 0
+    /** 键盘弹出动画期间先不动布局，避免中间值把页面压扁 */
+    let suppressUntil = 0
     const reset = () => {
       frame.style.removeProperty('--app-viewport-height')
       frame.style.removeProperty('--app-viewport-top')
@@ -71,6 +76,9 @@ export const useMobileViewport = (enabled: boolean) => {
     const update = () => {
       // 双指缩放由浏览器处理，保持当前布局尺寸。
       if (viewport && viewport.scale !== 1) {
+        return
+      }
+      if (performance.now() < suppressUntil) {
         return
       }
       // 失焦后直接恢复 CSS 的全高布局，不等 Safari 收键盘后的 resize。
@@ -97,8 +105,11 @@ export const useMobileViewport = (enabled: boolean) => {
     }
     const onFocusIn = () => {
       if (document.activeElement?.matches(inputSelector)) {
-        schedule()
+        suppressUntil = performance.now() + 180
+        window.setTimeout(() => schedule(), 200)
+        return
       }
+      schedule()
     }
 
     update()
