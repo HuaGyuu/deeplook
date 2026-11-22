@@ -259,6 +259,7 @@ export const zh = {
   voiceCallRelease: '松开发送',
   voiceCallHint: '按住说话，松开发送；AI 回答会自动朗读，按住时暂停朗读。',
   voiceCallEntry: '语音通话',
+  updateDownloadFailedHint: '由于服务器问题下载失败，可以关注作者公众号发送 deeplook 获取最新版安装包',
   voiceInputUnavailable: '当前环境不支持录音',
   holdToTalkSendHint: '松手发送，上滑取消',
   holdToTalkCancel: '松开取消',

@@ -18,6 +18,7 @@ type UpdateState =
   | 'permission'
   | 'installing'
   | 'error'
+  | 'downloadError'
 
 /**
  * 关于页的版本更新：一行「版本更新 + 检查更新按钮」，
@@ -68,8 +69,9 @@ export const UpdateChecker = () => {
       } else if (event.status === 'installing' || event.status === 'ready') {
         setState('installing')
       } else if (event.status === 'error') {
-        setState('error')
-        setMessage(event.message ?? '')
+        // 下载安装包失败：不展示底层报错，统一给出可操作的提示
+        setState('downloadError')
+        setMessage('')
       } else if (event.status === 'external') {
         setState('available')
       }
@@ -82,7 +84,7 @@ export const UpdateChecker = () => {
       <div className={styles.row}>
         <span className={styles.label}>{t('versionUpdate')}</span>
         <div className={styles.actions}>
-          {state === 'available' ? (
+          {state === 'available' || state === 'downloadError' ? (
             <Button size="s" onClick={install}>
               {t('downloadAndInstall')}
             </Button>
@@ -100,6 +102,7 @@ export const UpdateChecker = () => {
         {state === 'downloading' ? t('downloadingUpdate', { percent }) : null}
         {state === 'permission' ? t('updatePermission') : null}
         {state === 'installing' ? t('updateInstalling') : null}
+        {state === 'downloadError' ? t('updateDownloadFailedHint') : null}
         {state === 'error' ? `${t('updateFailed')}${message ? `：${message}` : ''}` : null}
       </div>
     </div>

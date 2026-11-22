@@ -326,17 +326,38 @@ export const MobileSider = () => {
   const dragging = useMobileSider((state) => state.dragging)
   const progress = useMobileSider((state) => state.progress)
   const visible = open || dragging || progress > 0
-  const [rendered, setRendered] = useState(visible)
+  const [rendered, setRendered] = useState(false)
+  /** 是否已经进入展开态：先以收起态挂载，再开一帧展开，过渡动画才会真正播放 */
+  const [entered, setEntered] = useState(false)
 
   useEffect(() => {
     if (visible) {
       setRendered(true)
+    } else {
+      setEntered(false)
+    }
+  }, [visible])
+
+  // 挂载后等两帧再展开，避免「一挂载就是最终态」导致没有进场动画
+  useEffect(() => {
+    if (!rendered || !visible || entered) {
       return
     }
-    if (!rendered) {
+    let inner = 0
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => setEntered(true))
+    })
+    return () => {
+      cancelAnimationFrame(outer)
+      cancelAnimationFrame(inner)
+    }
+  }, [rendered, visible, entered])
+
+  // 收起动画结束后再真正卸载
+  useEffect(() => {
+    if (visible || !rendered) {
       return
     }
-    // 收起时等过渡动画结束再真正卸载
     const timer = setTimeout(() => setRendered(false), 300)
     return () => clearTimeout(timer)
   }, [visible, rendered])
@@ -349,12 +370,12 @@ export const MobileSider = () => {
   return (
     <>
       <div
-        className={clsx(styles.drawerMask, open && !dragging && styles.drawerMaskOpen)}
+        className={clsx(styles.drawerMask, entered && !dragging && styles.drawerMaskOpen)}
         style={dragging ? { opacity: Math.min(1, Math.max(0, progress)) } : undefined}
         onClick={closeMobileSider}
       />
       <div
-        className={clsx(styles.drawer, open && !dragging && styles.drawerOpen)}
+        className={clsx(styles.drawer, entered && !dragging && styles.drawerOpen)}
         style={
           dragging ? { transform: `translateX(-${shift}%)`, transition: 'none' } : undefined
         }

@@ -267,6 +267,7 @@ export const en = {
   voiceCallRelease: 'Release to send',
   voiceCallHint: 'Hold to talk, release to send. Replies are read aloud and pause when you hold the button.',
   voiceCallEntry: 'Voice call',
+  updateDownloadFailedHint: 'Download failed due to a server problem. Follow the author\'s WeChat account and send \'deeplook\' to get the latest APK.',
   voiceInputUnavailable: 'Recording is not available here',
   holdToTalkSendHint: 'Release to send, swipe up to cancel',
   holdToTalkCancel: 'Release to cancel',
