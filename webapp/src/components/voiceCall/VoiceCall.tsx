@@ -47,18 +47,20 @@ const formatDuration = (seconds: number) => {
 }
 
 /** 从会话里抽出双方说过的文字，按时间顺序展示 */
+const cleanText = (text: string) => text.replace(/\*\*/g, '').replace(/^#+\s*/gm, '')
+
 const collectTranscript = (session: Session | undefined) =>
   (session?.messages ?? [])
     .map((message) => {
       if (message.role === 'user') {
-        return { id: message.id, role: message.role, text: message.content.trim() }
+        return { id: message.id, role: message.role, text: cleanText(message.content.trim()) }
       }
       const text = message.blocks
         .filter((block) => block.type === 'text')
         .map((block) => block.text)
         .join('')
         .trim()
-      return { id: message.id, role: message.role, text }
+      return { id: message.id, role: message.role, text: cleanText(text) }
     })
     .filter((item) => item.text.length > 0)
 
@@ -334,7 +336,7 @@ export const VoiceCall = () => {
         </button>
       </div>
 
-      <div className={styles.stage}>
+      <div className={clsx(styles.stage, showTranscript && styles.stageDim)}>
         <button
           type="button"
           className={clsx(styles.orb, status === 'speaking' && styles.orbSpeaking)}
@@ -359,7 +361,7 @@ export const VoiceCall = () => {
         <div className={styles.status} role="status" aria-live="polite">
           {statusText}
         </div>
-        {speaking ? <div className={styles.hint}>{t('voiceCallTapToInterrupt')}</div> : null}
+        <div className={styles.hint}>{speaking ? t('voiceCallTapToInterrupt') : ''}</div>
       </div>
 
       <div className={styles.bottom}>

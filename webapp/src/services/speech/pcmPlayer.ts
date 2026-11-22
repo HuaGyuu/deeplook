@@ -91,8 +91,10 @@ export const createPcmPlayer = (sampleRate: number): PcmPlayer => {
           native.ttsEnd?.()
         }),
       cancel: () => {
+        const resolvePending = endedResolver
         endedResolver = null
         native.ttsCancel?.()
+        resolvePending?.()
       },
     }
     return player

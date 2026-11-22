@@ -1125,9 +1125,18 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    /** 立即打断：停掉播放并丢弃剩余数据 */
+    /** 立即打断：马上静音（pause+flush），再异步释放，避免延迟 */
     void ttsCancel() {
         ttsCancelled = true;
+        AudioTrack track = ttsTrack;
+        if (track != null) {
+            try {
+                track.pause();
+                track.flush();
+            } catch (Exception ignored) {
+                // 已经停止时忽略
+            }
+        }
         ttsExecutor.execute(this::releaseTtsTrack);
     }
 
