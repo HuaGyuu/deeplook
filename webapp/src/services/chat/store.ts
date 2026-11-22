@@ -5,7 +5,7 @@ import type { CreateMessageRequest } from '../api/types.js'
 import { extractFileIds, getFileErrorCode, isRetryableApiError } from '../api/errors.js'
 import { cancelUpload, describeUploadError, uploadAttachment, useUploads } from '../attachments.js'
 import { useSettings } from '../settings.js'
-import { getSelectedPersona } from '../personas.js'
+import { getSelectedPersona, selectPersona } from '../personas.js'
 import { getConnection, PROTOCOL_ANTHROPIC } from '../providers.js'
 import { appendBranch, getVisibleMessages, normalizeSession, selectVersion } from './branches.js'
 import * as db from './db.js'
@@ -499,6 +499,8 @@ export const newChat = () => {
     set({ activeId: null })
     rememberActiveSession(null)
     trimSessionCache()
+    // 新对话默认不使用人设，需要时在悬浮按钮里再选
+    selectPersona(null)
   }
 }
 

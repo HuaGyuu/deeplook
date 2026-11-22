@@ -27,6 +27,9 @@ import { BalanceCard } from './BalanceCard.js'
 import { SessionItem } from './SessionItem.js'
 import styles from './Sider.module.css'
 
+/** 会话很多时首屏只渲染这么多，滚动到底再追加，避免一次渲染上千条卡顿 */
+const SESSION_PAGE_SIZE = 60
+
 /** 展开的侧边栏：名称与收起按钮、开启新对话、按时间分组的会话列表、底部设置；移动端放在抽屉里，收起按钮关闭抽屉 */
 export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
   const t = useTranslate()
@@ -44,6 +47,29 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
       ? [{ key: 'pinned', label: t('pinnedGroup'), sessions: pinnedSessions }, ...restGroups]
       : restGroups
   }, [sessions, pinnedIds, now, t])
+  const [visibleCount, setVisibleCount] = useState(SESSION_PAGE_SIZE)
+  // 会话数量变化（导入、删除）时回到首批
+  useEffect(() => {
+    setVisibleCount(SESSION_PAGE_SIZE)
+  }, [sessions.length])
+  const visibleGroups = useMemo(() => {
+    if (sessions.length <= visibleCount) {
+      return groups
+    }
+    let remaining = visibleCount
+    const result: typeof groups = []
+    for (const group of groups) {
+      if (remaining <= 0) {
+        break
+      }
+      const slice = group.sessions.slice(0, remaining)
+      remaining -= slice.length
+      if (slice.length > 0) {
+        result.push({ ...group, sessions: slice })
+      }
+    }
+    return result
+  }, [groups, visibleCount, sessions.length])
   const [deleting, setDeleting] = useState<SessionSummary | null>(null)
   const [deletePending, setDeletePending] = useState(false)
   /** 多选删除：进入后点击会话切换选中，不再打开会话 */
@@ -185,7 +211,18 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
       </button>
       <BalanceCard />
       <div className={styles.listWrap}>
-        <div className={styles.list}>
+        <div
+          className={styles.list}
+          onScroll={(event) => {
+            const element = event.currentTarget
+            if (
+              visibleCount < sessions.length &&
+              element.scrollTop + element.clientHeight > element.scrollHeight - 240
+            ) {
+              setVisibleCount((count) => Math.min(sessions.length, count + SESSION_PAGE_SIZE))
+            }
+          }}
+        >
           {selecting ? (
             <div className={styles.selectBar}>
               <span className={styles.selectedCount}>
@@ -219,7 +256,7 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
               </Button>
             </div>
           ) : null}
-          {groups.map((group, index) => (
+          {visibleGroups.map((group, index) => (
             <div key={group.key} className={styles.section}>
               <div className={styles.sectionHeader}>
                 <span className={styles.sectionLabel}>{group.label}</span>
