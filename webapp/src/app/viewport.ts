@@ -78,10 +78,12 @@ export const useMobileViewport = (enabled: boolean) => {
         reset()
         return
       }
-      frame.style.setProperty(
-        '--app-viewport-height',
-        `${viewport?.height ?? window.innerHeight}px`
-      )
+      const height = viewport?.height ?? window.innerHeight
+      // 少数机型在后台/切换键盘瞬间会读出 0，写入后整页高度会坍缩，这里直接忽略
+      if (!height || height < 100) {
+        return
+      }
+      frame.style.setProperty('--app-viewport-height', `${height}px`)
       frame.style.setProperty('--app-viewport-top', `${viewport?.offsetTop ?? 0}px`)
     }
     const scheduleFrame = () => {

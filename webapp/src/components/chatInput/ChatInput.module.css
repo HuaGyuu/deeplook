@@ -228,7 +228,7 @@
 @media not all and (min-width: 768px) {
   .wrapper {
     flex-shrink: 0;
-    max-height: calc(var(--app-viewport-height, 100dvh) - 120px);
+    max-height: calc(var(--app-viewport-height, 100vh) - 120px);
   }
 
   .textareaWrapper {
@@ -443,11 +443,11 @@
   gap: 8px;
   box-sizing: border-box;
   min-width: 0;
-  height: 96px;
+  height: 88px;
   padding: 0 4px;
-  border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: 18px;
-  background-color: var(--dsw-alias-bg-layer-1);
+  border: none;
+  border-radius: 16px;
+  background-color: var(--dsw-alias-bg-skeleton);
   color: var(--dsw-alias-label-primary);
   font: inherit;
   font-size: 14px;
