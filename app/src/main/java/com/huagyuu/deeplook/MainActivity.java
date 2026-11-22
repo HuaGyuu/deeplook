@@ -1006,11 +1006,9 @@ public class MainActivity extends AppCompatActivity {
     private volatile int ttsOutRate = 48000;
     private volatile int ttsBufferSize;
     private volatile int ttsUnderruns;
-    private volatile int ttsDumpCount;
     private volatile long ttsLeadFrames;
     /** 复用常开音轨时，记录起播时的播放头基准 */
     private volatile long ttsHeadBase;
-    private volatile int ttsOutDumpCount;
     /** 播放前如果音频模式不是 NORMAL（录音/通话残留），先切回 NORMAL，播完还原 */
     private volatile int ttsPreviousMode = -1;
 
@@ -1030,7 +1028,6 @@ public class MainActivity extends AppCompatActivity {
         ttsCancelled = false;
         ttsFramesWritten = 0;
         ttsBytesQueued = 0;
-        prepareTtsDump();
         ttsExecutor.execute(() -> {
             releaseTtsTrack();
             enterMediaMode();
@@ -1248,7 +1245,6 @@ public class MainActivity extends AppCompatActivity {
         } catch (IllegalArgumentException e) {
             return;
         }
-        appendTtsDump(data);
         ttsExecutor.execute(() -> {
             AudioTrack track = ttsTrack;
             if (track == null || ttsCancelled) {
@@ -1472,7 +1468,6 @@ public class MainActivity extends AppCompatActivity {
             ttsFramesWritten += written / 2L;
             ttsBytesQueued += written;
         }
-        appendTtsOutDump(out, offset);
         if (offset < length) {
             ttsLog("write truncated " + offset + "/" + length);
         }
@@ -1484,80 +1479,9 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /** 收到的 PCM 原样落盘（cache/tts-raw.pcm），用于排查音质问题 */
-    private void prepareTtsDump() {
-        try {
-            File file = new File(getCacheDir(), "tts-raw.pcm");
-            //noinspection ResultOfMethodCallIgnored
-            file.delete();
-            File outFile = new File(getCacheDir(), "tts-out.pcm");
-            //noinspection ResultOfMethodCallIgnored
-            outFile.delete();
-            ttsOutDumpCount = 0;
-        } catch (Exception ignored) {
-        }
-        ttsDumpCount = 0;
-    }
-
-    private void appendTtsDump(byte[] data) {
-        // 只保留前 3 秒（24kHz 单声道，约 144KB），避免日志过大
-        if (ttsDumpCount >= 144 * 1024) {
-            return;
-        }
-        int length = Math.min(data.length, 144 * 1024 - ttsDumpCount);
-        try (FileOutputStream out = new FileOutputStream(
-                new File(getCacheDir(), "tts-raw.pcm"), true)) {
-            out.write(data, 0, length);
-            ttsDumpCount += length;
-        } catch (IOException ignored) {
-        }
-    }
-
-    /** 重采样后的输出也落盘（cache/tts-out.pcm），用于核对时长与音质 */
-    private void appendTtsOutDump(byte[] data, int length) {
-        if (ttsOutDumpCount >= 384 * 1024) {
-            return;
-        }
-        int size = Math.min(length, 384 * 1024 - ttsOutDumpCount);
-        try (FileOutputStream out = new FileOutputStream(
-                new File(getCacheDir(), "tts-out.pcm"), true)) {
-            out.write(data, 0, size);
-            ttsOutDumpCount += size;
-        } catch (IOException ignored) {
-        }
-    }
-
-    /** 播放诊断：写到 cache/tts.log，方便 adb run-as 读取 */
+    /** 播放日志：只写 logcat，不落盘 */
     private void ttsLog(String message) {
         android.util.Log.d("DeepLookTts", message);
-        try {
-            File file = new File(getCacheDir(), "tts.log");
-            if (file.length() > 32 * 1024) {
-                //noinspection ResultOfMethodCallIgnored
-                file.delete();
-            }
-            String line = new SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(new Date())
-                    + " " + message + "\n";
-            byte[] bytes = line.getBytes(StandardCharsets.UTF_8);
-            try (FileOutputStream out = new FileOutputStream(file, true)) {
-                out.write(bytes);
-            }
-            // 同时写一份到外部目录，正式版也能用 adb 直接拉取排查
-            try {
-                File external = new File(getExternalFilesDir(null), "tts.log");
-                if (external.length() > 64 * 1024) {
-                    //noinspection ResultOfMethodCallIgnored
-                    external.delete();
-                }
-                try (FileOutputStream out = new FileOutputStream(external, true)) {
-                    out.write(bytes);
-                }
-            } catch (Exception ignored) {
-                // 外部目录不可写时忽略
-            }
-        } catch (IOException ignored) {
-            // 写不了日志不影响播放
-        }
     }
 
     private void releaseTtsTrack() {
