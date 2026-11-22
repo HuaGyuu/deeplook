@@ -35,6 +35,7 @@ import {
   updatePersona,
   usePersonas,
 } from '../../services/personas.js'
+import { setPersonaEditing, usePersonaEditor } from './personaEditorState.js'
 import { regionCodes, getRegionName, provinces } from '../../services/location.js'
 import {
   isChineseBrowser,
@@ -95,13 +96,17 @@ const SettingsPageView = () => {
   const historyDelete = useHistoryDelete()
   const replacingHistory = useChatStore((state) => state.importingHistory)
   const historyBusy = historyImport.busy || historyDelete.busy || replacingHistory
+  /** 人设编辑页是否打开：返回键要先退回人设列表 */
+  const personaEditing = usePersonaEditor((state) => state.editingId)
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || historyDelete.busy) {
         return
       }
-      if (page === 'root') {
+      if (page === 'persona' && personaEditing !== null) {
+        setPersonaEditing(null)
+      } else if (page === 'root') {
         closeSettings()
       } else {
         setPage('root')
@@ -109,20 +114,23 @@ const SettingsPageView = () => {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [page, historyDelete.busy])
+  }, [page, personaEditing, historyDelete.busy])
+
+  /** 返回上一级：人设编辑页 -> 人设列表 -> 设置首页 */
+  const goBack = () => {
+    if (page === 'persona' && personaEditing !== null) {
+      setPersonaEditing(null)
+      return true
+    }
+    if (page === 'root') {
+      return false
+    }
+    setPage('root')
+    return true
+  }
 
   // 系统返回键：二级页面先回到设置首页，由原生 __deeplookBack 调用
-  useEffect(
-    () =>
-      registerSettingsBackHandler(() => {
-        if (page === 'root') {
-          return false
-        }
-        setPage('root')
-        return true
-      }),
-    [page]
-  )
+  useEffect(() => registerSettingsBackHandler(goBack), [page, personaEditing])
 
   const title = page === 'root' ? t('settings') : t(pageTitles[page])
   return (
@@ -132,7 +140,11 @@ const SettingsPageView = () => {
           type="button"
           className={styles.backButton}
           aria-label={page === 'root' ? t('close') : t('back')}
-          onClick={() => (page === 'root' ? closeSettings() : setPage('root'))}
+          onClick={() => {
+            if (!goBack()) {
+              closeSettings()
+            }
+          }}
         >
           <IconChevronRightOutline14 />
         </button>
@@ -302,7 +314,7 @@ const PersonaSettings = () => {
   const t = useTranslate()
   const personas = usePersonas((state) => state.personas)
   const selectedId = usePersonas((state) => state.selectedId)
-  const [editingId, setEditingId] = useState<string | 'new' | null>(null)
+  const editingId = usePersonaEditor((state) => state.editingId)
   const [draft, setDraft] = useState<{ name: string; content: string; cover: string | null }>({
     name: '',
     content: '',
@@ -310,10 +322,28 @@ const PersonaSettings = () => {
   })
   const [busy, setBusy] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  /** 多选删除 */
+  const [selecting, setSelecting] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set())
+  /** 待确认删除的人设 id 列表 */
+  const [confirmIds, setConfirmIds] = useState<string[] | null>(null)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressed = useRef(false)
+
+  // 打开编辑页时把人设内容填进草稿（全局状态只存 id）
+  useEffect(() => {
+    if (editingId === null || editingId === 'new') {
+      return
+    }
+    const persona = personas.find((item) => item.id === editingId)
+    if (persona) {
+      setDraft({ name: persona.name, content: persona.content, cover: persona.cover })
+    }
+  }, [editingId, personas])
 
   const openNew = () => {
     setDraft({ name: '', content: '', cover: null })
-    setEditingId('new')
+    setPersonaEditing('new')
   }
   const openEdit = (id: string) => {
     const persona = personas.find((item) => item.id === id)
@@ -321,7 +351,7 @@ const PersonaSettings = () => {
       return
     }
     setDraft({ name: persona.name, content: persona.content, cover: persona.cover })
-    setEditingId(id)
+    setPersonaEditing(id)
   }
   const save = () => {
     if (editingId === null) {
@@ -332,7 +362,7 @@ const PersonaSettings = () => {
     } else {
       updatePersona(editingId, draft)
     }
-    setEditingId(null)
+    setPersonaEditing(null)
   }
   const pickCover = async (file: File | undefined) => {
     if (!file) {
@@ -348,6 +378,52 @@ const PersonaSettings = () => {
       setBusy(false)
     }
   }
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((previous) => {
+      const next = new Set(previous)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+  const exitSelect = () => {
+    setSelecting(false)
+    setSelectedIds(new Set())
+  }
+  const startLongPress = (id: string) => {
+    longPressed.current = false
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+    }
+    longPressTimer.current = setTimeout(() => {
+      longPressed.current = true
+      setSelecting(true)
+      setSelectedIds(new Set([id]))
+    }, 550)
+  }
+  const cancelLongPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+  }
+  const onCardClick = (id: string) => {
+    if (longPressed.current) {
+      longPressed.current = false
+      return
+    }
+    if (selecting) {
+      toggleSelected(id)
+      return
+    }
+    openEdit(id)
+  }
+  const allSelected = personas.length > 0 && selectedIds.size >= personas.length
+  const confirmTargets = confirmIds ?? []
 
   if (editingId !== null) {
     return (
@@ -408,21 +484,14 @@ const PersonaSettings = () => {
         </div>
         <div className={styles.subpageActions}>
           {editingId !== 'new' ? (
-            <Button
-              variant="dangerOutlined"
-              size="m"
-              onClick={() => {
-                deletePersona(editingId)
-                setEditingId(null)
-              }}
-            >
+            <Button variant="dangerOutlined" size="m" onClick={() => setConfirmIds([editingId])}>
               {t('personaDelete')}
             </Button>
           ) : (
             <span />
           )}
           <span className={styles.personaEditorActions}>
-            <Button variant="outlined" size="m" onClick={() => setEditingId(null)}>
+            <Button variant="outlined" size="m" onClick={() => setPersonaEditing(null)}>
               {t('cancel')}
             </Button>
             <Button variant="primary" size="m" onClick={save}>
@@ -430,6 +499,31 @@ const PersonaSettings = () => {
             </Button>
           </span>
         </div>
+        {confirmIds ? (
+          <Modal
+            title={t('personaDeleteTitle')}
+            onClose={() => setConfirmIds(null)}
+            footer={
+              <>
+                <Button variant="outlined" onClick={() => setConfirmIds(null)}>
+                  {t('cancel')}
+                </Button>
+                <Button
+                  variant="danger"
+                  onClick={() => {
+                    deletePersona(confirmTargets[0])
+                    setConfirmIds(null)
+                    setPersonaEditing(null)
+                  }}
+                >
+                  {t('delete')}
+                </Button>
+              </>
+            }
+          >
+            {t('personaDeleteConfirm')}
+          </Modal>
+        ) : null}
       </div>
     )
   }
@@ -438,10 +532,38 @@ const PersonaSettings = () => {
     <div className={styles.subpage}>
       <div className={styles.personaHeader}>
         <p className={styles.subpageHint}>{t('personaDefaultHint')}</p>
-        <Button variant="outlined" size="s" onClick={openNew}>
-          {t('personaAdd')}
-        </Button>
+        {selecting ? (
+          <Button variant="outlined" size="s" onClick={exitSelect}>
+            {t('cancel')}
+          </Button>
+        ) : (
+          <Button variant="outlined" size="s" onClick={openNew}>
+            {t('personaAdd')}
+          </Button>
+        )}
       </div>
+      {selecting ? (
+        <div className={styles.personaSelectBar}>
+          <span className={styles.personaSelectedCount}>
+            {t('selectedCount', { count: selectedIds.size })}
+          </span>
+          <button
+            type="button"
+            className={styles.personaToolbarAction}
+            onClick={() => setSelectedIds(allSelected ? new Set() : new Set(personas.map((item) => item.id)))}
+          >
+            {allSelected ? t('clearSelection') : t('selectAll')}
+          </button>
+          <Button
+            variant="danger"
+            size="s"
+            disabled={selectedIds.size === 0}
+            onClick={() => setConfirmIds([...selectedIds])}
+          >
+            {t('delete')}
+          </Button>
+        </div>
+      ) : null}
       {personas.length === 0 ? (
         <p className={styles.personaEmpty}>{t('personaEmptyList')}</p>
       ) : (
@@ -450,13 +572,19 @@ const PersonaSettings = () => {
             <button
               key={persona.id}
               type="button"
-              className={styles.personaCard}
-              onClick={() => openEdit(persona.id)}
+              className={clsx(styles.personaCard, selecting && styles.personaCardSelecting)}
+              onPointerDown={() => startLongPress(persona.id)}
+              onPointerUp={cancelLongPress}
+              onPointerLeave={cancelLongPress}
+              onPointerCancel={cancelLongPress}
+              onContextMenu={(event) => event.preventDefault()}
+              onClick={() => onCardClick(persona.id)}
             >
               <span
                 className={clsx(
                   styles.personaCover,
-                  persona.id === selectedId && styles.personaCoverActive
+                  persona.id === selectedId && styles.personaCoverActive,
+                  selectedIds.has(persona.id) && styles.personaCoverSelected
                 )}
               >
                 {persona.cover ? (
@@ -464,46 +592,55 @@ const PersonaSettings = () => {
                 ) : (
                   <span className={styles.personaCoverText}>{persona.name}</span>
                 )}
+                {selecting ? (
+                  <span
+                    className={clsx(
+                      styles.personaCheck,
+                      selectedIds.has(persona.id) && styles.personaCheckOn
+                    )}
+                    aria-hidden="true"
+                  >
+                    {selectedIds.has(persona.id) ? '✓' : ''}
+                  </span>
+                ) : null}
               </span>
               <span className={styles.personaName}>{persona.name}</span>
             </button>
           ))}
         </div>
       )}
+      {confirmIds ? (
+        <Modal
+          title={t('personaDeleteTitle')}
+          onClose={() => setConfirmIds(null)}
+          footer={
+            <>
+              <Button variant="outlined" onClick={() => setConfirmIds(null)}>
+                {t('cancel')}
+              </Button>
+              <Button
+                variant="danger"
+                onClick={() => {
+                  for (const id of confirmTargets) {
+                    deletePersona(id)
+                  }
+                  setConfirmIds(null)
+                  exitSelect()
+                }}
+              >
+                {t('delete')}
+              </Button>
+            </>
+          }
+        >
+          {confirmTargets.length > 1
+            ? t('personaDeleteManyConfirm', { count: confirmTargets.length })
+            : t('personaDeleteConfirm')}
+        </Modal>
+      ) : null}
     </div>
   )
 }
-
-/** 把选中的图片压到合适尺寸再存 localStorage，避免超出配额 */
-const compressImage = (file: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const objectUrl = URL.createObjectURL(file)
-    const image = new Image()
-    image.onload = () => {
-      try {
-        const maxSide = 1600
-        const scale = Math.min(1, maxSide / Math.max(image.width, image.height))
-        const canvas = document.createElement('canvas')
-        canvas.width = Math.max(1, Math.round(image.width * scale))
-        canvas.height = Math.max(1, Math.round(image.height * scale))
-        const context = canvas.getContext('2d')
-        if (!context) {
-          throw new Error('canvas unavailable')
-        }
-        context.drawImage(image, 0, 0, canvas.width, canvas.height)
-        resolve(canvas.toDataURL('image/jpeg', 0.82))
-      } catch (error) {
-        reject(error instanceof Error ? error : new Error(String(error)))
-      } finally {
-        URL.revokeObjectURL(objectUrl)
-      }
-    }
-    image.onerror = () => {
-      URL.revokeObjectURL(objectUrl)
-      reject(new Error('image load failed'))
-    }
-    image.src = objectUrl
-  })
 
 /** 人设封面：压到 480px 以内再存，避免撑爆 localStorage */
 const compressPersonaCover = (file: File): Promise<string> =>
@@ -538,6 +675,37 @@ const compressPersonaCover = (file: File): Promise<string> =>
 
 /** 个性化：聊天背景图 */
 /** 手机屏幕形状的比例，用于裁剪框与预览；移动端直接跟随 WebView 视口，保证和真实背景一致 */
+/** 把选中的图片压到合适尺寸再存 localStorage，避免超出配额 */
+const compressImage = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file)
+    const image = new Image()
+    image.onload = () => {
+      try {
+        const maxSide = 1600
+        const scale = Math.min(1, maxSide / Math.max(image.width, image.height))
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.max(1, Math.round(image.width * scale))
+        canvas.height = Math.max(1, Math.round(image.height * scale))
+        const context = canvas.getContext('2d')
+        if (!context) {
+          throw new Error('canvas unavailable')
+        }
+        context.drawImage(image, 0, 0, canvas.width, canvas.height)
+        resolve(canvas.toDataURL('image/jpeg', 0.82))
+      } catch (error) {
+        reject(error instanceof Error ? error : new Error(String(error)))
+      } finally {
+        URL.revokeObjectURL(objectUrl)
+      }
+    }
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      reject(new Error('image load failed'))
+    }
+    image.src = objectUrl
+  })
+
 const phoneAspect = () => {
   if (typeof window === 'undefined') {
     return '9 / 19.5'

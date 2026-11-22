@@ -49,7 +49,12 @@
     flex-shrink: 0;
   }
 
-  &:hover,
+  @media (hover: hover) {
+    &:hover {
+      background-color: var(--dsw-alias-interactive-bg-hover);
+    }
+  }
+
   &.navItemActive {
     background-color: var(--dsw-alias-interactive-bg-hover);
   }
@@ -182,7 +187,12 @@
   outline: none;
   transition: background-color var(--ds-transition-duration) var(--ds-ease-in-out);
 
-  &:hover,
+  @media (hover: hover) {
+    &:hover {
+      background-color: var(--dsw-specific-selector);
+    }
+  }
+
   &.themeOptionSelected {
     background-color: var(--dsw-specific-selector);
   }
@@ -566,8 +576,11 @@
     box-shadow: inset 0 1px 0 0 var(--dsw-alias-border-l2-darkmode-thin);
   }
 
-  &:hover {
-    background-color: var(--dsw-alias-interactive-bg-hover);
+  /* 触屏长按后 :hover 会一直粘住，只在支持 hover 的设备上生效 */
+  @media (hover: hover) {
+    &:hover {
+      background-color: var(--dsw-alias-interactive-bg-hover);
+    }
   }
 }
 
@@ -932,8 +945,10 @@
   text-decoration: none;
   cursor: pointer;
 
-  &:hover {
-    text-decoration: underline;
+  @media (hover: hover) {
+    &:hover {
+      text-decoration: underline;
+    }
   }
 }
 
@@ -1084,6 +1099,7 @@
 }
 
 .personaCover {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1197,4 +1213,68 @@
 .personaEditorActions {
   display: flex;
   gap: 8px;
+}
+
+
+/* 人设多选工具条与勾选态 */
+.personaSelectBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 6px 2px;
+}
+
+.personaSelectedCount {
+  flex: 1;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.personaToolbarAction {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--dsw-alias-brand-text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.personaCard {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.personaCardSelecting .personaCover {
+  border-color: var(--dsw-alias-border-l3, var(--dsw-alias-border-l2));
+}
+
+.personaCoverSelected {
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+.personaCheck {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--dsw-alias-border-l3, var(--dsw-alias-border-l2));
+  background-color: rgba(255, 255, 255, 0.9);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.personaCheckOn {
+  border-color: var(--dsw-alias-brand-primary);
+  background-color: var(--dsw-alias-brand-primary);
 }
