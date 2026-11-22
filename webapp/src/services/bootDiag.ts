@@ -103,6 +103,70 @@ export const noteReady = (ready: boolean) => {
   state.ready = ready
 }
 
+/** 元素在视口里的位置尺寸，用来发现「有内容但被挪出屏幕 / 尺寸为 0」 */
+const rectOf = (el: HTMLElement | null) => {
+  if (!el) {
+    return 'none'
+  }
+  const rect = el.getBoundingClientRect()
+  return `${Math.round(rect.width)}x${Math.round(rect.height)}@${Math.round(rect.left)},${Math.round(rect.top)}`
+}
+
+/** 关键节点的计算样式：区分「DOM 有内容但不可见」和「页面根本没绘制」 */
+const cssInfo = () => {
+  const body = document.body
+  const root = document.getElementById('root')
+  const first = root?.firstElementChild as HTMLElement | null
+  const bodyStyle = body ? getComputedStyle(body) : null
+  const firstStyle = first ? getComputedStyle(first) : null
+  const center = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2)
+  let running = -1
+  try {
+    running = document.getAnimations ? document.getAnimations().filter((a) => a.playState === 'running').length : -1
+  } catch {
+    running = -2
+  }
+  return [
+    `bg=${bodyStyle?.backgroundColor ?? '?'}`,
+    `fg=${bodyStyle?.color ?? '?'}`,
+    `op=${firstStyle?.opacity ?? '?'}`,
+    `vis=${firstStyle?.visibility ?? '?'}`,
+    `anim=${running}`,
+    `rm=${window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : 0}`,
+    `dark=${window.matchMedia('(prefers-color-scheme: dark)').matches ? 1 : 0}`,
+    `hit=${center ? `${center.tagName}.${String(center.className || '').slice(0, 18)}` : 'none'}`,
+    `vw=${window.innerWidth}x${window.innerHeight}`,
+    `dpr=${window.devicePixelRatio}`,
+    `doc=${document.visibilityState}`,
+    `rect=${rectOf(first)}`,
+    `htmlbg=${getComputedStyle(document.documentElement).backgroundColor}`,
+    `scrim=${document.documentElement.style.getPropertyValue('--chat-bg-scrim-alpha') || '-'}`,
+    `surface=${document.documentElement.style.getPropertyValue('--chat-surface') || '-'}`,
+    `bgLayer=${document.querySelector('[class*="chatBackground"]') ? 1 : 0}`,
+  ].join(' ')
+}
+
+/** 红屏自检：铺一层纯红，用来判断 WebView 到底有没有把内容画到屏幕上 */
+export const redTest = (on: boolean) => {
+  const id = '__deeplook_red_test'
+  const existing = document.getElementById(id)
+  if (!on) {
+    existing?.remove()
+    return 'off'
+  }
+  if (existing) {
+    return 'on'
+  }
+  const layer = document.createElement('div')
+  layer.id = id
+  layer.setAttribute(
+    'style',
+    'position:fixed!important;inset:0!important;z-index:2147483647!important;background:#ff0000!important;'
+  )
+  document.documentElement.appendChild(layer)
+  return 'on'
+}
+
 const report = () => {
   const root = document.getElementById('root')
   return [
@@ -115,6 +179,7 @@ const report = () => {
     `feat=${state.features}`,
     `err=${state.errors.length > 0 ? state.errors.join(' | ') : 'none'}`,
     `note=${state.notes.length > 0 ? state.notes.join(' | ') : 'none'}`,
+    cssInfo(),
   ].join(' ')
 }
 
@@ -122,12 +187,14 @@ declare global {
   interface Window {
     __deeplookDiag?: boolean
     __deeplookDiagReport?: () => string
+    __deeplookRedTest?: (on: boolean) => string
   }
 }
 
 // 页面里最早的钩子：脚本执行到这里，说明 bundle 本身跑起来了
 window.__deeplookDiag = true
 window.__deeplookDiagReport = report
+window.__deeplookRedTest = redTest
 
 window.addEventListener('error', (event) => {
   push(state.errors, `${event.message} @${event.filename}:${event.lineno}`)

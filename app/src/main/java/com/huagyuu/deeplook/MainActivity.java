@@ -127,6 +127,12 @@ public class MainActivity extends AppCompatActivity {
     private TextView diagPanel;
     private final List<String> consoleLines = new ArrayList<>();
     private String lastPageDiag = "js=pending";
+    /** 生命周期计数：区分「冷启动黑屏」和「从后台回来黑屏」 */
+    private int pauseCount;
+    private int resumeCount;
+    private int pageFinishedCount;
+    private int loadCount;
+    private String redTestState = "red=-";
 
     private final Runnable watchdogTask = new Runnable() {
         @Override
@@ -447,6 +453,7 @@ public class MainActivity extends AppCompatActivity {
                 super.onPageFinished(view, url);
                 injectDownloadBridge();
                 pageReady = true;
+                pageFinishedCount++;
                 bootAttempt = 0;
                 mainHandler.removeCallbacks(watchdogTask);
                 hideSplash();
@@ -1109,6 +1116,7 @@ public class MainActivity extends AppCompatActivity {
 
     /** 加载页面并重新武装启动看门狗 */
     private void loadApp() {
+        loadCount++;
         pageReady = false;
         loadProgress = 0;
         showSplash(null);
@@ -1260,10 +1268,16 @@ public class MainActivity extends AppCompatActivity {
         panel.setTypeface(android.graphics.Typeface.MONOSPACE);
         panel.setPadding((int) (8 * density), (int) (6 * density),
                 (int) (8 * density), (int) (6 * density));
-        panel.setText("diag starting");
-        panel.setOnClickListener(v -> {
-            // 点一下隐藏诊断条，长按再显示，避免挡住操作
-            panel.setVisibility(panel.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+        panel.setText("diag（点=红屏自检，长按=切换兼容渲染）");
+        panel.setOnClickListener(v -> runRedTest());
+        // 长按切换软件渲染并重载：如果重载后界面出来了，就是硬件渲染的问题
+        panel.setOnLongClickListener(v -> {
+            boolean next = !compatSoftware;
+            setCompatSoftware(next);
+            redTestState = next ? "sw=on" : "sw=off";
+            recreateWebView(next);
+            showSplash(next ? "已切到软件渲染，正在重载…" : "已切回硬件渲染，正在重载…");
+            return true;
         });
         diagPanel = panel;
         rootView.addView(panel);
@@ -1293,6 +1307,11 @@ public class MainActivity extends AppCompatActivity {
                 .append(" splash=").append(splashView == null ? 0
                         : (splashView.getVisibility() == View.VISIBLE ? 1 : 0))
                 .append(" night=").append(isDarkMode() ? 1 : 0)
+                .append(" ev p").append(pauseCount)
+                .append(" r").append(resumeCount)
+                .append(" f").append(pageFinishedCount)
+                .append(" l").append(loadCount)
+                .append(" ").append(redTestState)
                 .append(" wv=").append(webViewVersion());
         if (webView != null) {
             native_.append("\nurl=").append(shorten(webView.getUrl(), 60))
@@ -1330,6 +1349,32 @@ public class MainActivity extends AppCompatActivity {
                                 : '\n' + "c=" + consoleLines.get(consoleLines.size() - 1)));
                     }
                 });
+    }
+
+    /** 红屏自检：在页面里铺一层纯红。看得到红色 = WebView 绘制正常，问题在页面样式；看不到 = 绘制/合成异常 */
+    private void runRedTest() {
+        WebView target = webView;
+        if (target == null) {
+            return;
+        }
+        redTestState = "red=on";
+        if (splashCreated && splashView != null) {
+            splashView.setVisibility(View.VISIBLE);
+            splashStatus.setText("红屏自检：现在屏幕应该是纯红色（5 秒）\n看得到红色说明绘制正常");
+        }
+        target.evaluateJavascript(
+                "(window.__deeplookRedTest ? window.__deeplookRedTest(true) : 'no-hook')", null);
+        mainHandler.postDelayed(() -> {
+            WebView current = webView;
+            if (current != null) {
+                current.evaluateJavascript(
+                        "(window.__deeplookRedTest ? window.__deeplookRedTest(false) : 'no-hook')", null);
+            }
+            redTestState = "red=off";
+            if (splashCreated && splashView != null) {
+                splashView.setVisibility(View.GONE);
+            }
+        }, 5000);
     }
 
     private static String shorten(@Nullable String text, int limit) {
@@ -1414,12 +1459,14 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onPause() {
+        pauseCount++;
         super.onPause();
         webView.onPause();
     }
 
     @Override
     protected void onResume() {
+        resumeCount++;
         super.onResume();
         webView.onResume();
         // 从「安装未知应用」设置页返回后，继续拉起安装器
