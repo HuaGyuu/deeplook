@@ -964,6 +964,188 @@ public class MainActivity extends AppCompatActivity {
     private File downloadTempFile;
     private OutputStream downloadStream;
 
+    // ---------------- 从下载链接导入历史记录 ----------------
+
+    /** 临时下载文件：导入完成后删除 */
+    private File historyImportFile;
+    private Thread historyImportThread;
+    private volatile boolean historyImportCancelled;
+    private volatile boolean historyImportRunning;
+
+    /** 分片回传页面时的原始字节数（base64 后约 4/3） */
+    private static final int IMPORT_CHUNK_BYTES = 384 * 1024;
+
+    /** 从下载链接导入：原生下载到 cache，再分片回传给页面做导入 */
+    void importHistoryFromUrl(@Nullable String urlString) {
+        if (historyImportRunning) {
+            postImportEvent("{\"type\":\"error\",\"message\":\"busy\"}");
+            return;
+        }
+        if (urlString == null) {
+            postImportEvent("{\"type\":\"error\",\"message\":\"invalid-url\"}");
+            return;
+        }
+        String url = urlString.trim();
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            postImportEvent("{\"type\":\"error\",\"message\":\"invalid-url\"}");
+            return;
+        }
+        historyImportRunning = true;
+        historyImportCancelled = false;
+        historyImportThread = new Thread(() -> runHistoryImport(url));
+        historyImportThread.start();
+    }
+
+    void cancelHistoryImport() {
+        historyImportCancelled = true;
+        postImportEvent("{\"type\":\"error\",\"message\":\"cancelled\"}");
+    }
+
+    void deleteHistoryImport() {
+        File file = historyImportFile;
+        historyImportFile = null;
+        if (file != null && file.exists()) {
+            // 删除失败不影响使用，下次导入会覆盖同名文件
+            //noinspection ResultOfMethodCallIgnored
+            file.delete();
+        }
+    }
+
+    private void runHistoryImport(String urlString) {
+        File target = null;
+        HttpURLConnection connection = null;
+        InputStream input = null;
+        FileOutputStream output = null;
+        try {
+            File dir = new File(getCacheDir(), "history-import");
+            if (!dir.exists() && !dir.mkdirs()) {
+                throw new IOException("cannot create import dir");
+            }
+            target = new File(dir, "history.zip");
+            if (target.exists()) {
+                //noinspection ResultOfMethodCallIgnored
+                target.delete();
+            }
+            connection = (HttpURLConnection) new URL(urlString).openConnection();
+            connection.setConnectTimeout(20000);
+            connection.setReadTimeout(30000);
+            connection.setInstanceFollowRedirects(true);
+            connection.setRequestProperty("User-Agent", "deeplook-android");
+            int code = connection.getResponseCode();
+            if (code < 200 || code >= 300) {
+                throw new IOException("HTTP " + code);
+            }
+            long total = connection.getContentLengthLong();
+            input = connection.getInputStream();
+            output = new FileOutputStream(target);
+            byte[] buffer = new byte[16384];
+            long received = 0;
+            int lastPercent = -1;
+            int read;
+            while ((read = input.read(buffer)) != -1) {
+                if (historyImportCancelled) {
+                    throw new IOException("cancelled");
+                }
+                output.write(buffer, 0, read);
+                received += read;
+                if (total > 0) {
+                    int percent = (int) (received * 100 / total);
+                    if (percent != lastPercent) {
+                        lastPercent = percent;
+                        postImportEvent("{\"type\":\"download\",\"status\":\"downloading\",\"percent\":"
+                                + percent + ",\"received\":" + received + ",\"total\":" + total + "}");
+                    }
+                }
+            }
+            output.flush();
+            output.close();
+            output = null;
+            input.close();
+            input = null;
+            if (total > 0 && received < total) {
+                throw new IOException("incomplete download");
+            }
+            long size = target.length();
+            historyImportFile = target;
+            postImportEvent("{\"type\":\"download\",\"status\":\"done\",\"size\":" + size + "}");
+            streamImportFile(target);
+        } catch (Exception e) {
+            if (target != null && target.exists()) {
+                //noinspection ResultOfMethodCallIgnored
+                target.delete();
+            }
+            String message = historyImportCancelled ? "cancelled" : String.valueOf(e.getMessage());
+            postImportEvent("{\"type\":\"error\",\"message\":" + JSONObject.quote(message) + "}");
+        } finally {
+            try {
+                if (output != null) {
+                    output.close();
+                }
+            } catch (IOException ignored) {
+            }
+            try {
+                if (input != null) {
+                    input.close();
+                }
+            } catch (IOException ignored) {
+            }
+            if (connection != null) {
+                connection.disconnect();
+            }
+            historyImportRunning = false;
+        }
+    }
+
+    /** 分片读取文件并以 base64 回传，页面拼成 Blob 后走原有导入流程 */
+    private void streamImportFile(File file) {
+        try (java.io.FileInputStream in = new java.io.FileInputStream(file)) {
+            byte[] buffer = new byte[IMPORT_CHUNK_BYTES];
+            long total = file.length();
+            long sent = 0;
+            int seq = 0;
+            int lastPercent = -1;
+            int read;
+            while ((read = in.read(buffer)) != -1) {
+                if (historyImportCancelled) {
+                    return;
+                }
+                byte[] slice = read == buffer.length ? buffer : java.util.Arrays.copyOf(buffer, read);
+                final String base64 = Base64.encodeToString(slice, Base64.NO_WRAP);
+                final int index = seq++;
+                mainHandler.post(() -> {
+                    if (webView != null) {
+                        webView.evaluateJavascript(
+                                "window.__deeplookImportChunk && window.__deeplookImportChunk("
+                                        + index + ",'" + base64 + "')", null);
+                    }
+                });
+                sent += read;
+                if (total > 0) {
+                    int percent = (int) (sent * 100 / total);
+                    if (percent != lastPercent) {
+                        lastPercent = percent;
+                        postImportEvent("{\"type\":\"read\",\"status\":\"reading\",\"percent\":"
+                                + percent + "}");
+                    }
+                }
+            }
+            postImportEvent("{\"type\":\"read\",\"status\":\"done\",\"chunks\":" + seq
+                    + ",\"size\":" + total + "}");
+        } catch (Exception e) {
+            postImportEvent("{\"type\":\"error\",\"message\":" + JSONObject.quote(String.valueOf(e.getMessage())) + "}");
+        }
+    }
+
+    private void postImportEvent(String json) {
+        mainHandler.post(() -> {
+            if (webView == null) {
+                return;
+            }
+            webView.evaluateJavascript(
+                    "window.__deeplookImportEvent && window.__deeplookImportEvent(" + json + ")", null);
+        });
+    }
+
     void beginDownload(@Nullable String name) {
         closeDownloadStream();
         String safeName = sanitizeFileName(name == null || name.isEmpty() ? "download.zip" : name);
@@ -1478,6 +1660,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        historyImportCancelled = true;
         mainHandler.removeCallbacks(diagTick);
         closeDownloadStream();
         if (webView != null) {

@@ -40,6 +40,24 @@ final class AndroidBridge {
     public void downloadUpdate(String url, String version) {
         activity.downloadUpdate(url, version);
     }
+
+    /** 从下载链接导入历史记录：原生负责下载与分片回传，进度通过 window.__deeplookImportEvent 回调 */
+    @JavascriptInterface
+    public void importHistoryFromUrl(String url) {
+        activity.importHistoryFromUrl(url);
+    }
+
+    /** 取消正在进行的链接导入 */
+    @JavascriptInterface
+    public void cancelHistoryImport() {
+        activity.cancelHistoryImport();
+    }
+
+    /** 导入结束后删除临时文件 */
+    @JavascriptInterface
+    public void deleteHistoryImport() {
+        activity.deleteHistoryImport();
+    }
 }
 
 

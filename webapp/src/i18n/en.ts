@@ -231,6 +231,18 @@ export const en = {
     'The uploaded chat history will replace all your current chats. Import anyway?',
   historyImportDescription:
     'Importing chat history replaces all local chats and attachments. Supports ZIP files exported from DeepSeek.',
+  historyImportUrl: 'Import from download link',
+  historyImportUrlDescription:
+    'Paste the download link of a DeepSeek history export (.zip). It downloads, replaces your history, then deletes the temp file.',
+  historyImportUrlPlaceholder: 'Paste an https://… .zip link',
+  historyImportUrlImport: 'Import',
+  historyImportUrlPreparing: 'Preparing…',
+  historyImportPhaseDownloading: 'Downloading {percent}%',
+  historyImportPhaseReading: 'Reading file {percent}%',
+  historyImportPhaseImporting: 'Importing {percent}%',
+  historyImportUrlFailed: 'Import failed: the link may have expired or the file is invalid',
+  historyImportUrlInvalid: 'Enter an http(s) .zip download link',
+  historyImportUrlCancelled: 'Import cancelled',
   historyImportPreparing: 'Reading archive…',
   historyImporting: 'Importing chat history… {percent}%',
   historyImportedOne: 'Imported 1 chat',

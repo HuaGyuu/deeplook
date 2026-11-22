@@ -28,6 +28,7 @@ import { LOGO_DATA_URL } from '../../assets/logoData.js'
 import { WECHAT_QR_DATA_URL } from '../../assets/wechatQrData.js'
 import { openExternalUrl } from '../../services/externalLink.js'
 import { useChatStore } from '../../services/chat/store.js'
+import { importHistoryFromUrl, validateHistoryUrl } from '../../services/chat/historyImportUrl.js'
 import { regionCodes, getRegionName, provinces } from '../../services/location.js'
 import {
   isChineseBrowser,
@@ -147,6 +148,7 @@ const SettingsPageView = () => {
           <>
             <ApiKeyField editor={apiKeyEditor} />
             <ImportHistory historyImport={historyImport} disabled={historyBusy} />
+            <ImportHistoryUrl disabled={historyBusy} />
             <ExportHistory disabled={historyBusy} />
             <SettingCell
               label={t('deleteAllSessions')}
@@ -1070,6 +1072,92 @@ const errorStatus = (key: TranslationKey, error: unknown): Status => ({
     : { params: { message: error instanceof Error ? error.message : String(error) } }),
   error: true,
 })
+
+/** 从下载链接导入：原生下载 → 自动导入 → 删除临时文件 */
+const ImportHistoryUrl = ({ disabled }: { disabled: boolean }) => {
+  const t = useTranslate()
+  const [url, setUrl] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [percent, setPercent] = useState<number | null>(null)
+  const [status, setStatus] = useState<{ text: string; error?: boolean } | null>(null)
+
+  const start = async () => {
+    if (busy || disabled) {
+      return
+    }
+    if (!validateHistoryUrl(url)) {
+      setStatus({ text: t('historyImportUrlInvalid'), error: true })
+      return
+    }
+    setBusy(true)
+    setPercent(0)
+    setStatus({ text: t('historyImportUrlPreparing') })
+    try {
+      const count = await importHistoryFromUrl(url, (progress) => {
+        setPercent(progress.percent)
+        const key =
+          progress.phase === 'downloading'
+            ? 'historyImportPhaseDownloading'
+            : progress.phase === 'reading'
+              ? 'historyImportPhaseReading'
+              : 'historyImportPhaseImporting'
+        setStatus({ text: t(key, { percent: progress.percent }) })
+      })
+      setStatus({ text: t(count === 1 ? 'historyImportedOne' : 'historyImported', { count }) })
+      setUrl('')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : ''
+      setStatus({
+        text: message === 'cancelled' ? t('historyImportUrlCancelled') : t('historyImportUrlFailed'),
+        error: true,
+      })
+    } finally {
+      setBusy(false)
+      setPercent(null)
+    }
+  }
+
+  return (
+    <div className={clsx(styles.cell, styles.urlImportCell)}>
+      <div className={styles.text}>
+        <div className={styles.label}>{t('historyImportUrl')}</div>
+        <div className={clsx(styles.description, status?.error && styles.error)}>
+          {status?.text ?? t('historyImportUrlDescription')}
+        </div>
+        {percent !== null ? (
+          <div className={styles.progressTrack}>
+            <div
+              className={styles.progressBar}
+              style={{ width: `${Math.max(0, Math.min(100, percent))}%` }}
+            />
+          </div>
+        ) : null}
+      </div>
+      <div className={styles.urlForm}>
+        <input
+          className={styles.urlInput}
+          type="url"
+          inputMode="url"
+          autoComplete="off"
+          spellCheck={false}
+          placeholder={t('historyImportUrlPlaceholder')}
+          value={url}
+          onChange={(event) => setUrl(event.target.value)}
+          disabled={disabled || busy}
+        />
+        <Button
+          variant="outlined"
+          size="m"
+          className={clsx(styles.cellButton, styles.uploadButton)}
+          disabled={disabled || busy}
+          onClick={() => void start()}
+        >
+          {t('historyImportUrlImport')}
+        </Button>
+      </div>
+    </div>
+  )
+}
 
 const SettingCell = ({
   label,
