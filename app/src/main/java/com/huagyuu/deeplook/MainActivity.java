@@ -6,6 +6,7 @@ import android.content.ActivityNotFoundException;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.media.AudioAttributes;
 import android.media.AudioFormat;
@@ -214,8 +215,15 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
 
-        compatSoftware = getSharedPreferences("boot", MODE_PRIVATE)
-                .getBoolean("software", false);
+        SharedPreferences bootPrefs = getSharedPreferences("boot", MODE_PRIVATE);
+        // 装上新版本时先回到硬件渲染：软件渲染只是个别机型黑屏的兜底，不能永久粘住
+        if (bootPrefs.getInt("version", 0) != BuildConfig.VERSION_CODE) {
+            bootPrefs.edit()
+                    .putBoolean("software", false)
+                    .putInt("version", BuildConfig.VERSION_CODE)
+                    .apply();
+        }
+        compatSoftware = bootPrefs.getBoolean("software", false);
         createAndConfigureWebView(compatSoftware);
         rootView.addView(webView);
         if (DIAG_BUILD) {
@@ -979,27 +987,53 @@ public class MainActivity extends AppCompatActivity {
     /** 分片回传页面时的原始字节数（base64 后约 4/3） */
     private static final int IMPORT_CHUNK_BYTES = 384 * 1024;
 
-    // ---------------- TTS 播放：AudioTrack 走媒体音量 ----------------
+// ---------------- TTS 播放：AudioTrack 走媒体音量 ----------------
 
     private final java.util.concurrent.ExecutorService ttsExecutor =
             java.util.concurrent.Executors.newSingleThreadExecutor();
     private volatile AudioTrack ttsTrack;
     private volatile boolean ttsCancelled;
+    private volatile boolean ttsPlaying;
     private volatile long ttsFramesWritten;
-    private volatile int ttsSampleRate = 24000;
+    private volatile long ttsBytesQueued;
+    /** 服务端返回的采样率（24k） */
+    private volatile int ttsInRate = 24000;
+    /** 设备原生输出采样率（一般 48k）：先重采样再喂给 AudioTrack，避免系统低质量重采样带来杂音 */
+    private volatile int ttsOutRate = 48000;
+    private volatile int ttsBufferSize;
+    private volatile int ttsUnderruns;
+    private volatile int ttsDumpCount;
+    private volatile int ttsOutDumpCount;
+    /** 播放前如果音频模式不是 NORMAL（录音/通话残留），先切回 NORMAL，播完还原 */
+    private volatile int ttsPreviousMode = -1;
+
+    // 重采样状态：只在 ttsExecutor 单线程里访问
+    private byte ttsByteCarry;
+    private boolean ttsHasByteCarry;
+    private short[] ttsInSamples = new short[16384];
+    private int ttsInCount;
+    private double ttsPhase;
+    private long ttsInTotal;
 
     /** 开始一段语音合成播放：USAGE_MEDIA / CONTENT_TYPE_SPEECH，音量跟随媒体 */
     void ttsStart(int sampleRate) {
-        ttsSampleRate = sampleRate > 0 ? sampleRate : 24000;
+        ttsInRate = sampleRate > 0 ? sampleRate : 24000;
+        int nativeRate = AudioTrack.getNativeOutputSampleRate(AudioManager.STREAM_MUSIC);
+        ttsOutRate = nativeRate > 0 ? nativeRate : 48000;
         ttsCancelled = false;
         ttsFramesWritten = 0;
-        final int rate = ttsSampleRate;
+        ttsBytesQueued = 0;
+        prepareTtsDump();
         ttsExecutor.execute(() -> {
             releaseTtsTrack();
+            enterMediaMode();
+            final int rate = ttsOutRate;
             try {
                 int minBuffer = AudioTrack.getMinBufferSize(
                         rate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT);
-                int bufferSize = Math.max(minBuffer > 0 ? minBuffer : rate / 4, rate / 4);
+                // 缓冲约 1 秒（每秒 rate*2 字节）：留足余量，避免写入时把缓冲塞满
+                int bufferSize = Math.max(minBuffer > 0 ? minBuffer * 2 : 0, rate * 2);
+                ttsBufferSize = bufferSize;
                 AudioTrack track;
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                     AudioAttributes attributes = new AudioAttributes.Builder()
@@ -1018,15 +1052,20 @@ public class MainActivity extends AppCompatActivity {
                             AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT,
                             bufferSize, AudioTrack.MODE_STREAM);
                 }
-                track.play();
+                track.setVolume(1f);
                 ttsTrack = track;
+                ttsPlaying = false;
+                resetResampler();
+                ttsLog("start in=" + ttsInRate + " out=" + rate + " min=" + minBuffer
+                        + " buf=" + bufferSize + " state=" + track.getState());
             } catch (Exception e) {
                 ttsTrack = null;
+                ttsLog("start failed " + e);
             }
         });
     }
 
-    /** 追加一段 base64 的 16-bit 小端单声道 PCM */
+    /** 追加一段 base64 的 16-bit 小端单声道 PCM（24k），内部重采样到设备采样率再播放 */
     void ttsWrite(String base64Chunk) {
         if (ttsCancelled || base64Chunk == null || base64Chunk.isEmpty()) {
             return;
@@ -1037,18 +1076,16 @@ public class MainActivity extends AppCompatActivity {
         } catch (IllegalArgumentException e) {
             return;
         }
+        appendTtsDump(data);
         ttsExecutor.execute(() -> {
             AudioTrack track = ttsTrack;
             if (track == null || ttsCancelled) {
                 return;
             }
             try {
-                int written = track.write(data, 0, data.length);
-                if (written > 0) {
-                    ttsFramesWritten += written / 2L;
-                }
-            } catch (Exception ignored) {
-                // 播放中断时写入会失败，忽略
+                feedSamples(track, data);
+            } catch (Exception e) {
+                ttsLog("write exception " + e);
             }
         });
     }
@@ -1056,13 +1093,14 @@ public class MainActivity extends AppCompatActivity {
     /** 写完后调用：等缓冲区播完再释放，并通知页面播放结束 */
     void ttsEnd() {
         ttsExecutor.execute(() -> {
+            flushRemainder();
             AudioTrack track = ttsTrack;
             if (track != null && !ttsCancelled) {
                 try {
                     long deadline = System.currentTimeMillis() + 180000;
                     while (!ttsCancelled && System.currentTimeMillis() < deadline) {
                         long played = track.getPlaybackHeadPosition() & 0xFFFFFFFFL;
-                        if (played >= ttsFramesWritten - ttsSampleRate / 20L) {
+                        if (played >= ttsFramesWritten - ttsOutRate / 20L) {
                             break;
                         }
                         Thread.sleep(40);
@@ -1071,6 +1109,13 @@ public class MainActivity extends AppCompatActivity {
                     Thread.currentThread().interrupt();
                 }
             }
+            AudioTrack finished = ttsTrack;
+            if (finished != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                ttsUnderruns = finished.getUnderrunCount();
+            }
+            long expected = ttsInRate > 0 ? ttsInTotal * ttsOutRate / ttsInRate : 0;
+            ttsLog("end in=" + ttsInTotal + " out=" + ttsFramesWritten + " expect=" + expected
+                    + " bytes=" + ttsBytesQueued + " underruns=" + ttsUnderruns);
             releaseTtsTrack();
             notifyTtsEnded();
         });
@@ -1082,22 +1127,233 @@ public class MainActivity extends AppCompatActivity {
         ttsExecutor.execute(this::releaseTtsTrack);
     }
 
-    private void releaseTtsTrack() {
-        AudioTrack track = ttsTrack;
-        ttsTrack = null;
-        if (track == null) {
+    /** 播放期间保持 MODE_NORMAL，避免录音/通话模式下的语音处理链（AGC、降噪）作用在媒体播放上 */
+    private void enterMediaMode() {
+        try {
+            AudioManager manager = (AudioManager) getSystemService(AUDIO_SERVICE);
+            if (manager == null) {
+                return;
+            }
+            int mode = manager.getMode();
+            if (mode != AudioManager.MODE_NORMAL) {
+                ttsPreviousMode = mode;
+                manager.setMode(AudioManager.MODE_NORMAL);
+                ttsLog("audio mode " + mode + " -> NORMAL");
+            } else {
+                ttsPreviousMode = -1;
+            }
+        } catch (Exception ignored) {
+            // 模式切换失败不影响播放
+        }
+    }
+
+    private void restoreAudioMode() {
+        int previous = ttsPreviousMode;
+        ttsPreviousMode = -1;
+        if (previous == -1) {
             return;
         }
         try {
-            if (track.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
-                track.stop();
+            AudioManager manager = (AudioManager) getSystemService(AUDIO_SERVICE);
+            if (manager != null) {
+                manager.setMode(previous);
             }
         } catch (Exception ignored) {
+            // 还原失败忽略
         }
+    }
+
+    private void resetResampler() {
+        ttsHasByteCarry = false;
+        ttsInCount = 0;
+        ttsPhase = 0;
+        ttsInTotal = 0;
+    }
+
+    /** 字节流 → 样本 → 重采样 → 写入 AudioTrack */
+    private void feedSamples(AudioTrack track, byte[] data) {
+        int offset = 0;
+        if (ttsHasByteCarry && data.length > 0) {
+            int low = ttsByteCarry & 0xFF;
+            int high = data[0] & 0xFF;
+            appendSample((short) ((high << 8) | low));
+            ttsHasByteCarry = false;
+            offset = 1;
+        }
+        for (int i = offset; i + 1 < data.length; i += 2) {
+            appendSample((short) (((data[i + 1] & 0xFF) << 8) | (data[i] & 0xFF)));
+        }
+        if ((data.length - offset) % 2 == 1) {
+            ttsByteCarry = data[data.length - 1];
+            ttsHasByteCarry = true;
+        }
+        resampleAndPlay(track, false);
+    }
+
+    /** 收尾：把最后一个样本也用上，避免尾部丢音 */
+    private void flushRemainder() {
+        AudioTrack track = ttsTrack;
+        if (track == null) {
+            return;
+        }
+        resampleAndPlay(track, true);
+    }
+
+    private void appendSample(short sample) {
+        if (ttsInCount >= ttsInSamples.length) {
+            short[] grown = new short[ttsInSamples.length * 2];
+            System.arraycopy(ttsInSamples, 0, grown, 0, ttsInCount);
+            ttsInSamples = grown;
+        }
+        ttsInSamples[ttsInCount++] = sample;
+        ttsInTotal++;
+    }
+
+    private void resampleAndPlay(AudioTrack track, boolean flushTail) {
+        if (ttsInCount < 2) {
+            return;
+        }
+        // 以「输入样本」为单位的步长：输出采样率越高，步长越小（<1 表示插值补点）
+        double step = (double) ttsInRate / (double) ttsOutRate;
+        double position = ttsPhase;
+        int maxOut = (int) Math.ceil((ttsInCount - position) / step) + 2;
+        byte[] out = new byte[maxOut * 2];
+        int outCount = 0;
+        int index = 0;
+        while (true) {
+            index = (int) Math.floor(position);
+            int limit = flushTail ? ttsInCount : ttsInCount - 1;
+            if (index + 1 >= limit) {
+                break;
+            }
+            double frac = position - index;
+            double value = ttsInSamples[index] * (1 - frac) + ttsInSamples[index + 1] * frac;
+            short sample = (short) Math.max(-32768, Math.min(32767, Math.round(value)));
+            out[outCount * 2] = (byte) (sample & 0xFF);
+            out[outCount * 2 + 1] = (byte) ((sample >> 8) & 0xFF);
+            outCount++;
+            position += step;
+        }
+        int keepFrom = Math.min(index, ttsInCount - 1);
+        int keep = ttsInCount - keepFrom;
+        System.arraycopy(ttsInSamples, keepFrom, ttsInSamples, 0, keep);
+        ttsInCount = keep;
+        ttsPhase = Math.max(0, position - keepFrom);
+        if (outCount == 0) {
+            return;
+        }
+        int length = outCount * 2;
+        int threshold = Math.max(4096, (int) (ttsOutRate * 0.6));
+        // 只有这次写入会快填满缓冲时才先起播，其余情况先攒够预缓冲再播，避免开头空播
+        if (!ttsPlaying && ttsBytesQueued + length > ttsBufferSize - 8192) {
+            track.play();
+            ttsPlaying = true;
+            ttsLog("play early buffered=" + ttsBytesQueued);
+        }
+        int offset = 0;
+        while (offset < length) {
+            int written = track.write(out, offset, length - offset);
+            if (written <= 0) {
+                ttsLog("write failed " + written + " at " + offset + "/" + length);
+                break;
+            }
+            offset += written;
+            ttsFramesWritten += written / 2L;
+            ttsBytesQueued += written;
+        }
+        appendTtsOutDump(out, offset);
+        if (offset < length) {
+            ttsLog("write truncated " + offset + "/" + length);
+        }
+        if (!ttsPlaying && ttsBytesQueued >= threshold) {
+            // 预缓冲约 0.3 秒再起播：既不断音，也不丢开头
+            track.play();
+            ttsPlaying = true;
+            ttsLog("play buffered=" + ttsBytesQueued);
+        }
+    }
+
+    /** 收到的 PCM 原样落盘（cache/tts-raw.pcm），用于排查音质问题 */
+    private void prepareTtsDump() {
         try {
-            track.release();
+            File file = new File(getCacheDir(), "tts-raw.pcm");
+            //noinspection ResultOfMethodCallIgnored
+            file.delete();
+            File outFile = new File(getCacheDir(), "tts-out.pcm");
+            //noinspection ResultOfMethodCallIgnored
+            outFile.delete();
+            ttsOutDumpCount = 0;
         } catch (Exception ignored) {
         }
+        ttsDumpCount = 0;
+    }
+
+    private void appendTtsDump(byte[] data) {
+        // 只保留前 3 秒（24kHz 单声道，约 144KB），避免日志过大
+        if (ttsDumpCount >= 144 * 1024) {
+            return;
+        }
+        int length = Math.min(data.length, 144 * 1024 - ttsDumpCount);
+        try (FileOutputStream out = new FileOutputStream(
+                new File(getCacheDir(), "tts-raw.pcm"), true)) {
+            out.write(data, 0, length);
+            ttsDumpCount += length;
+        } catch (IOException ignored) {
+        }
+    }
+
+    /** 重采样后的输出也落盘（cache/tts-out.pcm），用于核对时长与音质 */
+    private void appendTtsOutDump(byte[] data, int length) {
+        if (ttsOutDumpCount >= 384 * 1024) {
+            return;
+        }
+        int size = Math.min(length, 384 * 1024 - ttsOutDumpCount);
+        try (FileOutputStream out = new FileOutputStream(
+                new File(getCacheDir(), "tts-out.pcm"), true)) {
+            out.write(data, 0, size);
+            ttsOutDumpCount += size;
+        } catch (IOException ignored) {
+        }
+    }
+
+    /** 播放诊断：写到 cache/tts.log，方便 adb run-as 读取 */
+    private void ttsLog(String message) {
+        android.util.Log.d("DeepLookTts", message);
+        try {
+            File file = new File(getCacheDir(), "tts.log");
+            if (file.length() > 32 * 1024) {
+                //noinspection ResultOfMethodCallIgnored
+                file.delete();
+            }
+            String line = new SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(new Date())
+                    + " " + message + "\n";
+            try (FileOutputStream out = new FileOutputStream(file, true)) {
+                out.write(line.getBytes(StandardCharsets.UTF_8));
+            }
+        } catch (IOException ignored) {
+            // 写不了日志不影响播放
+        }
+    }
+
+    private void releaseTtsTrack() {
+        AudioTrack track = ttsTrack;
+        ttsTrack = null;
+        ttsPlaying = false;
+        ttsBytesQueued = 0;
+        resetResampler();
+        if (track != null) {
+            try {
+                if (track.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
+                    track.stop();
+                }
+            } catch (Exception ignored) {
+            }
+            try {
+                track.release();
+            } catch (Exception ignored) {
+            }
+        }
+        restoreAudioMode();
     }
 
     private void notifyTtsEnded() {

@@ -11,6 +11,18 @@ type SpeechState = { speaking: boolean }
 
 export const useSpeechQueue = create<SpeechState>(() => ({ speaking: false }))
 
+/** 静音：只关掉朗读，文字照常显示 */
+let speechMuted = false
+
+export const setSpeechMuted = (value: boolean) => {
+  speechMuted = value
+  if (value) {
+    stopSpeech()
+  }
+}
+
+export const isSpeechMuted = () => speechMuted
+
 type Session = {
   controller: AbortController
   queue: string[]
@@ -90,7 +102,7 @@ const pump = async (state: Session) => {
 /** 推入一句待朗读的文字（标点交给 TTS 过滤） */
 export const enqueueSpeech = (text: string) => {
   const trimmed = text.trim()
-  if (!trimmed) {
+  if (!trimmed || speechMuted) {
     return
   }
   const state = ensureSession()

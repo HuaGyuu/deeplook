@@ -1,16 +1,22 @@
 import clsx from 'clsx'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
 import { transcribe } from '../../services/api/speech.js'
 import { getDraft, setDraftText } from '../../services/chat/drafts.js'
 import { sendMessage, useChatStore } from '../../services/chat/store.js'
+import type { Session } from '../../services/chat/types.js'
 import { canRecord, requestNativeMicrophonePermission } from '../../services/speech/micPermission.js'
 import { startRecording, type Recording } from '../../services/speech/recorder.js'
-import { enqueueSpeech, stopSpeech, useSpeechQueue } from '../../services/speech/speechQueue.js'
+import {
+  enqueueSpeech,
+  setSpeechMuted,
+  stopSpeech,
+  useSpeechQueue,
+} from '../../services/speech/speechQueue.js'
 import { useSettings } from '../../services/settings.js'
+import { usePersonas } from '../../services/personas.js'
 import { showToast } from '../base/toastState.js'
-import { IconCallOutline16, IconCloseOutline16 } from '../base/icons.js'
-import { LOGO_DATA_URL } from '../../assets/logoData.js'
+import { IconCloseOutline16, IconMicFill16, IconTextChatOutline18 } from '../base/icons.js'
 import { closeVoiceCall, useVoiceCall } from './voiceCallState.js'
 import styles from './VoiceCall.module.css'
 
@@ -19,7 +25,6 @@ type CallStatus = 'idle' | 'listening' | 'transcribing' | 'thinking' | 'speaking
 /** 句子结束标点：到达这些标点就先把这一句送去合成 */
 const SENTENCE_END = /[。！？!?；;\n]/
 
-/** 把新增长文本里已经完整的句子切出来，返回 [句子列表, 新的已读位置] */
 const takeSentences = (text: string, from: number): [string[], number] => {
   const sentences: string[] = []
   let start = from
@@ -35,25 +40,51 @@ const takeSentences = (text: string, from: number): [string[], number] => {
   return [sentences, start]
 }
 
+const formatDuration = (seconds: number) => {
+  const minutes = Math.floor(seconds / 60)
+  const rest = seconds % 60
+  return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`
+}
+
+/** 从会话里抽出双方说过的文字，按时间顺序展示 */
+const collectTranscript = (session: Session | undefined) =>
+  (session?.messages ?? [])
+    .map((message) => {
+      if (message.role === 'user') {
+        return { id: message.id, role: message.role, text: message.content.trim() }
+      }
+      const text = message.blocks
+        .filter((block) => block.type === 'text')
+        .map((block) => block.text)
+        .join('')
+        .trim()
+      return { id: message.id, role: message.role, text }
+    })
+    .filter((item) => item.text.length > 0)
+
 /**
  * 语音通话：按住说话 → 转写 → 走正常发送流程（消息真实写入当前会话），
- * 回复流式到达时按句朗读；按住时立即停止朗读。
+ * 回复流式到达时按句朗读；轻触中间圆形即可打断。
  */
 export const VoiceCall = () => {
   const t = useTranslate()
   const open = useVoiceCall((state) => state.open)
   const speaking = useSpeechQueue((state) => state.speaking)
   const activeId = useChatStore((state) => state.activeId)
+  const personas = usePersonas((state) => state.personas)
   const [status, setStatus] = useState<CallStatus>('idle')
   const [seconds, setSeconds] = useState(0)
+  const [elapsed, setElapsed] = useState(0)
+  const [muted, setMuted] = useState(false)
+  const [showTranscript, setShowTranscript] = useState(false)
   const recordingRef = useRef<Recording | null>(null)
   const [targetId, setTargetId] = useState<string | null>(null)
-  /** 已朗读到的正文位置，避免同一句重复朗读 */
   const spokenRef = useRef(0)
   const replyIdRef = useRef<string | null>(null)
   const busyRef = useRef(false)
+  const transcriptRef = useRef<HTMLDivElement>(null)
 
-  // 朗读与状态联动：队列在播时显示「正在朗读」
+  // 朗读与状态联动
   useEffect(() => {
     if (speaking && status === 'thinking') {
       setStatus('speaking')
@@ -63,6 +94,7 @@ export const VoiceCall = () => {
     }
   }, [speaking, status])
 
+  // 录音计时
   useEffect(() => {
     if (status !== 'listening') {
       return
@@ -75,7 +107,20 @@ export const VoiceCall = () => {
     return () => window.clearInterval(timer)
   }, [status])
 
-  // 关闭通话时释放麦克风与朗读
+  // 通话总时长
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+    setElapsed(0)
+    const startedAt = Date.now()
+    const timer = window.setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startedAt) / 1000))
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [open])
+
+  // 关闭通话时释放麦克风与朗读，并取消静音
   useEffect(() => {
     if (open) {
       return
@@ -83,6 +128,9 @@ export const VoiceCall = () => {
     recordingRef.current?.cancel()
     recordingRef.current = null
     stopSpeech()
+    setSpeechMuted(false)
+    setMuted(false)
+    setShowTranscript(false)
     setStatus('idle')
     setTargetId(null)
     replyIdRef.current = null
@@ -122,7 +170,6 @@ export const VoiceCall = () => {
         if (rest) {
           enqueueSpeech(rest)
         } else if (!text.trim()) {
-          // 没有可朗读的正文（例如请求失败），回到待说话状态
           setStatus('idle')
         }
         replyIdRef.current = null
@@ -130,7 +177,17 @@ export const VoiceCall = () => {
     })
   }, [open, targetId])
 
-  /** 写入草稿并发送；发送后把用户原本输入的文字还回去 */
+  // 文字面板跟着最新内容滚动
+  useEffect(() => {
+    if (!showTranscript) {
+      return
+    }
+    const element = transcriptRef.current
+    if (element) {
+      element.scrollTop = element.scrollHeight
+    }
+  })
+
   const sendText = (text: string) => {
     const sessionId = useChatStore.getState().activeId
     const previous = getDraft(sessionId).text
@@ -158,7 +215,6 @@ export const VoiceCall = () => {
       showToast({ key: 'voiceInputUnavailable' })
       return
     }
-    // 按住时立刻打断正在朗读的回复
     stopSpeech()
     busyRef.current = true
     try {
@@ -168,7 +224,6 @@ export const VoiceCall = () => {
       }
       setStatus('listening')
       const recording = await startRecording(() => {
-        // 到达单次时长上限时自动结束这一轮
         void finishListening()
       })
       recordingRef.current = recording
@@ -213,19 +268,35 @@ export const VoiceCall = () => {
       }
       setTargetId(nextId)
       setStatus('thinking')
-      // 回复结束后由订阅里的朗读队列收尾，这里不主动改状态
     } catch {
       setStatus('idle')
       showToast({ key: 'voiceInputFailed' })
     }
   }
 
+  const hangUp = () => {
+    stopSpeech()
+    setSpeechMuted(false)
+    closeVoiceCall()
+  }
+
+  const toggleMute = () => {
+    const next = !muted
+    setMuted(next)
+    setSpeechMuted(next)
+  }
+
+  const session = activeId ? useChatStore.getState().sessionCache[activeId] : undefined
+  const personaName = session?.personaName ?? null
+  const persona = personaName ? personas.find((item) => item.name === personaName) : undefined
+  const displayName = personaName || session?.title || t('voiceCallDefaultTitle')
+  const initial = Array.from(displayName)[0] ?? '雅'
+  const transcript = useMemo(() => collectTranscript(session), [session])
+
   if (!open) {
     return null
   }
 
-  const session = activeId ? useChatStore.getState().sessionCache[activeId] : undefined
-  const title = session?.title || t('voiceCallDefaultTitle')
   const statusText =
     status === 'listening'
       ? t('voiceCallListening', { seconds })
@@ -239,53 +310,62 @@ export const VoiceCall = () => {
 
   return (
     <div className={styles.overlay} role="dialog" aria-modal="true" aria-label={t('voiceCallTitle')}>
-      <div className={styles.header}>
-        <span className={styles.title}>{title}</span>
+      <div className={styles.glowA} aria-hidden />
+      <div className={styles.glowB} aria-hidden />
+      <div className={styles.topBar}>
+        <div className={styles.identity}>
+          <span className={styles.avatar}>
+            {persona?.cover ? <img src={persona.cover} alt="" /> : initial}
+          </span>
+          <span className={styles.identityText}>
+            <span className={styles.name}>{displayName}</span>
+            <span className={styles.sub}>
+              {t('voiceCallCalling')} · {formatDuration(elapsed)}
+            </span>
+          </span>
+        </div>
         <button
           type="button"
-          className={styles.hangUp}
-          aria-label={t('voiceCallHangUp')}
-          onClick={() => {
-            stopSpeech()
-            closeVoiceCall()
-          }}
+          className={clsx(styles.transcriptBtn, showTranscript && styles.transcriptBtnActive)}
+          aria-label={t('voiceCallTranscript')}
+          onClick={() => setShowTranscript((value) => !value)}
         >
-          <IconCallOutline16 />
+          <IconTextChatOutline18 />
         </button>
       </div>
-      <div
-        className={styles.stage}
-        onPointerDown={() => {
-          // 轻触屏幕即可打断正在朗读的回复
-          if (speaking) {
-            stopSpeech()
-          }
-        }}
-      >
-        <div
-          className={clsx(
-            styles.avatar,
-            (status === 'listening' || status === 'speaking') && styles.avatarActive
-          )}
+
+      <div className={styles.stage}>
+        <button
+          type="button"
+          className={clsx(styles.orb, status === 'speaking' && styles.orbSpeaking)}
+          aria-label={t('voiceCallTapToInterrupt')}
+          onPointerDown={() => {
+            if (speaking) {
+              stopSpeech()
+            }
+          }}
         >
-          {status === 'speaking' ? (
-            <span className={styles.wave}>
-              {[0, 1, 2, 3].map((index) => (
-                <span key={index} style={{ animationDelay: `${index * 0.16}s` }} />
-              ))}
-            </span>
-          ) : null}
-          <img src={LOGO_DATA_URL} alt="" aria-hidden="true" />
-        </div>
+          <span className={styles.orbInner}>
+            <span className={styles.timer}>{formatDuration(elapsed)}</span>
+            {status === 'speaking' ? (
+              <span className={styles.orbWave} aria-hidden>
+                {[0, 1, 2, 3, 4].map((index) => (
+                  <span key={index} style={{ animationDelay: `${index * 0.14}s` }} />
+                ))}
+              </span>
+            ) : null}
+          </span>
+        </button>
         <div className={styles.status} role="status" aria-live="polite">
           {statusText}
         </div>
-        {speaking ? <div className={styles.interruptHint}>{t('voiceCallTapToInterrupt')}</div> : null}
+        {speaking ? <div className={styles.hint}>{t('voiceCallTapToInterrupt')}</div> : null}
       </div>
-      <div className={styles.footer}>
+
+      <div className={styles.bottom}>
         <button
           type="button"
-          className={clsx(styles.talkButton, status === 'listening' && styles.talkButtonActive)}
+          className={clsx(styles.talkBtn, status === 'listening' && styles.talkBtnActive)}
           aria-label={t('holdToTalk')}
           onPointerDown={(event) => {
             event.preventDefault()
@@ -298,19 +378,62 @@ export const VoiceCall = () => {
         >
           {status === 'listening' ? t('voiceCallRelease') : t('holdToTalk')}
         </button>
-        <p className={styles.hint}>{t('voiceCallHint')}</p>
+        <div className={styles.controls}>
+          <button
+            type="button"
+            className={clsx(styles.roundBtn, muted && styles.roundBtnActive)}
+            aria-label={muted ? t('voiceCallUnmute') : t('voiceCallMute')}
+            onClick={toggleMute}
+          >
+            {muted ? <IconCloseOutline16 /> : <IconMicFill16 />}
+            <span className={styles.roundLabel}>
+              {muted ? t('voiceCallMuted') : t('voiceCallMute')}
+            </span>
+          </button>
+          <button
+            type="button"
+            className={clsx(styles.roundBtn, styles.hangBtn)}
+            aria-label={t('voiceCallHangUp')}
+            onClick={hangUp}
+          >
+            <IconCloseOutline16 />
+            <span className={styles.roundLabel}>{t('voiceCallHangUp')}</span>
+          </button>
+        </div>
       </div>
-      <button
-        type="button"
-        className={styles.closeIcon}
-        aria-label={t('close')}
-        onClick={() => {
-          stopSpeech()
-          closeVoiceCall()
-        }}
-      >
-        <IconCloseOutline16 />
-      </button>
+
+      {showTranscript ? (
+        <div className={styles.transcript} role="region" aria-label={t('voiceCallTranscriptTitle')}>
+          <div className={styles.transcriptHeader}>
+            <span>{t('voiceCallTranscriptTitle')}</span>
+            <button
+              type="button"
+              className={styles.transcriptClose}
+              aria-label={t('close')}
+              onClick={() => setShowTranscript(false)}
+            >
+              <IconCloseOutline16 />
+            </button>
+          </div>
+          <div className={styles.transcriptBody} ref={transcriptRef}>
+            {transcript.length === 0 ? (
+              <p className={styles.transcriptEmpty}>{t('voiceCallEmptyTranscript')}</p>
+            ) : (
+              transcript.map((item) => (
+                <div
+                  key={item.id}
+                  className={clsx(
+                    styles.bubble,
+                    item.role === 'user' ? styles.bubbleUser : styles.bubbleAi
+                  )}
+                >
+                  {item.text}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
