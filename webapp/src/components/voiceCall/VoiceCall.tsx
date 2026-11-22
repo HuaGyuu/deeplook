@@ -85,6 +85,9 @@ export const VoiceCall = () => {
   const replyIdRef = useRef<string | null>(null)
   const busyRef = useRef(false)
   const transcriptRef = useRef<HTMLDivElement>(null)
+  /** 用户是否停留在文字面板底部：只有停在底部时才自动跟随最新消息 */
+  const atBottomRef = useRef(true)
+  const lastCountRef = useRef(0)
 
   // 朗读与状态联动
   useEffect(() => {
@@ -178,17 +181,6 @@ export const VoiceCall = () => {
       }
     })
   }, [open, targetId])
-
-  // 文字面板跟着最新内容滚动
-  useEffect(() => {
-    if (!showTranscript) {
-      return
-    }
-    const element = transcriptRef.current
-    if (element) {
-      element.scrollTop = element.scrollHeight
-    }
-  })
 
   const sendText = (text: string) => {
     const sessionId = useChatStore.getState().activeId
@@ -299,6 +291,25 @@ export const VoiceCall = () => {
   const initial = Array.from(displayName)[0] ?? '雅'
   const transcript = useMemo(() => collectTranscript(session), [session])
 
+  // 文字面板跟随最新内容：仅在新增消息且用户停在底部时滚动，
+  // 避免计时器每秒重渲染把用户手动滚动的位置强行拉回底部
+  useEffect(() => {
+    if (!showTranscript) {
+      return
+    }
+    const element = transcriptRef.current
+    if (!element) {
+      return
+    }
+    if (transcript.length !== lastCountRef.current) {
+      lastCountRef.current = transcript.length
+      if (atBottomRef.current) {
+        element.scrollTop = element.scrollHeight
+      }
+    }
+  }, [showTranscript, transcript.length])
+
+
   if (!open) {
     return null
   }
@@ -334,7 +345,15 @@ export const VoiceCall = () => {
           type="button"
           className={clsx(styles.transcriptBtn, showTranscript && styles.transcriptBtnActive)}
           aria-label={t('voiceCallTranscript')}
-          onClick={() => setShowTranscript((value) => !value)}
+          onClick={() =>
+            setShowTranscript((value) => {
+              if (!value) {
+                atBottomRef.current = true
+                lastCountRef.current = 0
+              }
+              return !value
+            })
+          }
         >
           <IconTextChatOutline18 />
         </button>
@@ -422,7 +441,14 @@ export const VoiceCall = () => {
               <IconCloseOutline16 />
             </button>
           </div>
-          <div className={styles.transcriptBody} ref={transcriptRef}>
+          <div
+            className={styles.transcriptBody}
+            ref={transcriptRef}
+            onScroll={(event) => {
+              const el = event.currentTarget
+              atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24
+            }}
+          >
             {transcript.length === 0 ? (
               <p className={styles.transcriptEmpty}>{t('voiceCallEmptyTranscript')}</p>
             ) : (
