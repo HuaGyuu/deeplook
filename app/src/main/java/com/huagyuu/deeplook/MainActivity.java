@@ -1057,8 +1057,22 @@ public class MainActivity extends AppCompatActivity {
                             bufferSize, AudioTrack.MODE_STREAM);
                 }
                 track.setVolume(1f);
+                // 有些机型会丢弃 play() 之前写入的数据，导致开头被吃掉：
+                // 先垫 100ms 静音并立即起播，之后所有真实数据都在播放状态下写入。
+                int leadBytes = Math.max(2, rate * 2 * 100 / 1000);
+                byte[] silence = new byte[leadBytes];
+                int leadWritten = 0;
+                while (leadWritten < leadBytes) {
+                    int w = track.write(silence, leadWritten, leadBytes - leadWritten);
+                    if (w <= 0) {
+                        break;
+                    }
+                    leadWritten += w;
+                }
+                track.play();
                 ttsTrack = track;
-                ttsPlaying = false;
+                ttsPlaying = true;
+                ttsFramesWritten += leadWritten / 2L;
                 resetResampler();
                 ttsLog("start in=" + ttsInRate + " out=" + rate + " min=" + minBuffer
                         + " buf=" + bufferSize + " state=" + track.getState());

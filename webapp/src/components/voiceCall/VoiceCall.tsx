@@ -342,7 +342,8 @@ export const VoiceCall = () => {
           className={clsx(styles.orb, status === 'speaking' && styles.orbSpeaking)}
           aria-label={t('voiceCallTapToInterrupt')}
           onPointerDown={() => {
-            if (speaking) {
+            // 朗读中或还在合成/思考时，轻触都能打断
+            if (speaking || status === 'thinking') {
               stopSpeech()
             }
           }}

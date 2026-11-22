@@ -49,12 +49,15 @@ const speakSegment = async (state: Session, text: string): Promise<void> => {
   const stream = await synthesize(apiKey ?? '', text, ttsVoice, state.controller.signal)
   const reader = stream.getReader()
   const player = createPcmPlayer(TTS_SAMPLE_RATE)
+  // 首帧真正出声后再标记 speaking，避免「显示正在回答但还没声音」
+  player.onStart = () => {
+    useSpeechQueue.setState({ speaking: true })
+  }
   const onAbort = () => {
     player.cancel()
     void reader.cancel().catch(() => {})
   }
   state.controller.signal.addEventListener('abort', onAbort)
-  useSpeechQueue.setState({ speaking: true })
   try {
     for (;;) {
       const { done, value } = await reader.read()
