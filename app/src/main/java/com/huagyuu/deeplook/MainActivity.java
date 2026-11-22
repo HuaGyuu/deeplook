@@ -1157,6 +1157,19 @@ public class MainActivity extends AppCompatActivity {
         ttsExecutor.execute(this::releaseTtsTrack);
     }
 
+    /** 录音结束后立即把音频模式切回普通，避免后续播放被通话链路影响 */
+    void resetAudioMode() {
+        try {
+            AudioManager manager = (AudioManager) getSystemService(AUDIO_SERVICE);
+            if (manager != null && manager.getMode() != AudioManager.MODE_NORMAL) {
+                manager.setMode(AudioManager.MODE_NORMAL);
+                ttsLog("reset audio mode -> NORMAL");
+            }
+        } catch (Exception ignored) {
+            // 忽略
+        }
+    }
+
     /** 播放期间保持 MODE_NORMAL，避免录音/通话模式下的语音处理链（AGC、降噪）作用在媒体播放上 */
     private void enterMediaMode() {
         try {
@@ -1168,7 +1181,13 @@ public class MainActivity extends AppCompatActivity {
             if (mode != AudioManager.MODE_NORMAL) {
                 ttsPreviousMode = mode;
                 manager.setMode(AudioManager.MODE_NORMAL);
-                ttsLog("audio mode " + mode + " -> NORMAL");
+                // 录音/通话刚结束时通路还在切换，等它稳定，避免开头的声音走听筒听不到
+                try {
+                    Thread.sleep(400);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+                ttsLog("audio mode " + mode + " -> NORMAL (waited 400ms)");
             } else {
                 ttsPreviousMode = -1;
             }
@@ -1366,8 +1385,22 @@ public class MainActivity extends AppCompatActivity {
             }
             String line = new SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(new Date())
                     + " " + message + "\n";
+            byte[] bytes = line.getBytes(StandardCharsets.UTF_8);
             try (FileOutputStream out = new FileOutputStream(file, true)) {
-                out.write(line.getBytes(StandardCharsets.UTF_8));
+                out.write(bytes);
+            }
+            // 同时写一份到外部目录，正式版也能用 adb 直接拉取排查
+            try {
+                File external = new File(getExternalFilesDir(null), "tts.log");
+                if (external.length() > 64 * 1024) {
+                    //noinspection ResultOfMethodCallIgnored
+                    external.delete();
+                }
+                try (FileOutputStream out = new FileOutputStream(external, true)) {
+                    out.write(bytes);
+                }
+            } catch (Exception ignored) {
+                // 外部目录不可写时忽略
             }
         } catch (IOException ignored) {
             // 写不了日志不影响播放

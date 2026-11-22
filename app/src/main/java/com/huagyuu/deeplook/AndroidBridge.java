@@ -60,6 +60,12 @@ final class AndroidBridge {
     }
 
     /** TTS 播放：走原生 AudioTrack（媒体音量），分片写入 PCM */
+    /** 录音结束后恢复正常音频模式 */
+    @JavascriptInterface
+    public void resetAudioMode() {
+        activity.resetAudioMode();
+    }
+
     @JavascriptInterface
     public void ttsStart(int sampleRate) {
         activity.ttsStart(sampleRate);

@@ -251,6 +251,10 @@ export const VoiceCall = () => {
         audio = await recording.stop()
       } finally {
         recording.cancel()
+        // 录音结束立刻恢复正常音频模式，避免回答播放时开头走听筒
+        ;(
+          window as Window & { DeepSeekAndroid?: { resetAudioMode?: () => void } }
+        ).DeepSeekAndroid?.resetAudioMode?.()
       }
       if (!audio) {
         setStatus('idle')

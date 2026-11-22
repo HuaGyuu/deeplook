@@ -83,7 +83,6 @@ const pump = async (state: Session) => {
     return
   }
   state.running = true
-  useSpeechQueue.setState({ speaking: true })
   try {
     while (state.queue.length > 0 && !state.controller.signal.aborted) {
       const text = state.queue.shift()
@@ -97,7 +96,7 @@ const pump = async (state: Session) => {
   } finally {
     state.running = false
     if (session === state) {
-      useSpeechQueue.setState({ speaking: state.queue.length > 0 })
+      useSpeechQueue.setState({ speaking: false })
     }
   }
 }
