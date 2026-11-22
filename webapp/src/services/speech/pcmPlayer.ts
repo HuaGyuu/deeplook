@@ -67,8 +67,8 @@ export const createPcmPlayer = (sampleRate: number): PcmPlayer => {
 
   // ---- 原生 AudioTrack：音频走媒体的音量 ----
   if (native?.ttsStart) {
-    native.ttsStart(sampleRate)
     let started = false
+    /** 立刻开始推送：暂停攒数据会让音频设备迟迟不启动，听起来像“没声音好几秒” */
     const player: PcmPlayer = {
       push: (bytes) => {
         if (bytes.length === 0) {
@@ -76,6 +76,7 @@ export const createPcmPlayer = (sampleRate: number): PcmPlayer => {
         }
         if (!started) {
           started = true
+          native.ttsStart?.(sampleRate)
           player.onStart?.()
         }
         native.ttsWrite?.(bytesToBase64(bytes))

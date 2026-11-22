@@ -1007,6 +1007,9 @@ public class MainActivity extends AppCompatActivity {
     private volatile int ttsBufferSize;
     private volatile int ttsUnderruns;
     private volatile int ttsDumpCount;
+    private volatile long ttsLeadFrames;
+    /** 复用常开音轨时，记录起播时的播放头基准 */
+    private volatile long ttsHeadBase;
     private volatile int ttsOutDumpCount;
     /** 播放前如果音频模式不是 NORMAL（录音/通话残留），先切回 NORMAL，播完还原 */
     private volatile int ttsPreviousMode = -1;
@@ -1035,52 +1038,203 @@ public class MainActivity extends AppCompatActivity {
             try {
                 int minBuffer = AudioTrack.getMinBufferSize(
                         rate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT);
-                // 缓冲约 1 秒（每秒 rate*2 字节）：留足余量，避免写入时把缓冲塞满
-                int bufferSize = Math.max(minBuffer > 0 ? minBuffer * 2 : 0, rate * 2);
-                ttsBufferSize = bufferSize;
-                AudioTrack track;
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    AudioAttributes attributes = new AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_MEDIA)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                            .build();
-                    AudioFormat format = new AudioFormat.Builder()
-                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                            .setSampleRate(rate)
-                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                            .build();
-                    track = new AudioTrack(attributes, format, bufferSize,
-                            AudioTrack.MODE_STREAM, AudioManager.AUDIO_SESSION_ID_GENERATE);
-                } else {
-                    track = new AudioTrack(AudioManager.STREAM_MUSIC, rate,
-                            AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT,
-                            bufferSize, AudioTrack.MODE_STREAM);
+                // 缓冲约 0.25 秒：缓冲越大起播越慢，短一点起播更快
+                ttsBufferSize = Math.max(minBuffer > 0 ? minBuffer : 0, rate / 2);
+                ttsUsingWarm = false;
+                ttsHeadBase = 0;
+                AudioTrack track = openTtsTrack(rate);
+                if (track == null) {
+                    ttsLog("start failed: track null");
+                    return;
                 }
-                track.setVolume(1f);
-                // 有些机型会丢弃 play() 之前写入的数据，导致开头被吃掉：
-                // 先垫 100ms 静音并立即起播，之后所有真实数据都在播放状态下写入。
-                int leadBytes = Math.max(2, rate * 2 * 100 / 1000);
-                byte[] silence = new byte[leadBytes];
-                int leadWritten = 0;
-                while (leadWritten < leadBytes) {
-                    int w = track.write(silence, leadWritten, leadBytes - leadWritten);
-                    if (w <= 0) {
-                        break;
+                // 后台观察首帧延迟（不阻塞写入）
+                final AudioTrack probe = track;
+                new Thread(() -> {
+                    long t0 = System.currentTimeMillis();
+                    for (int i = 0; i < 100; i++) {
+                        try {
+                            if ((probe.getPlaybackHeadPosition() & 0xFFFFFFFFL) > 0) {
+                                ttsLog("first head after " + (System.currentTimeMillis() - t0) + "ms");
+                                return;
+                            }
+                            Thread.sleep(20);
+                        } catch (Exception e) {
+                            return;
+                        }
                     }
-                    leadWritten += w;
-                }
-                track.play();
+                    ttsLog("first head not seen in 2s");
+                }).start();
                 ttsTrack = track;
                 ttsPlaying = true;
-                ttsFramesWritten += leadWritten / 2L;
+                ttsFramesWritten += ttsLeadFrames;
                 resetResampler();
                 ttsLog("start in=" + ttsInRate + " out=" + rate + " min=" + minBuffer
-                        + " buf=" + bufferSize + " state=" + track.getState());
+                        + " buf=" + ttsBufferSize + " state=" + track.getState()
+                        + " playState=" + track.getPlayState()
+                        + " head=" + (track.getPlaybackHeadPosition() & 0xFFFFFFFFL));
             } catch (Exception e) {
                 ttsTrack = null;
                 ttsLog("start failed " + e);
             }
         });
+    }
+
+    /** 语音通话期间保持音频通路常开：一直播放极低音量静音，避免每段语音起播要等 1 秒多 */
+    private volatile boolean ttsWarmRunning;
+    private volatile boolean ttsWarmFeeding;
+    private volatile AudioTrack ttsWarmTrack;
+    private Thread ttsWarmThread;
+    private volatile boolean ttsUsingWarm;
+
+    void ttsWarmUp() {
+        if (ttsWarmRunning) {
+            return;
+        }
+        ttsWarmRunning = true;
+        int rate = AudioTrack.getNativeOutputSampleRate(AudioManager.STREAM_MUSIC);
+        if (rate <= 0) {
+            rate = 48000;
+        }
+        final int warmRate = rate;
+        ttsWarmThread = new Thread(() -> {
+            AudioTrack track = null;
+            try {
+                int minBuffer = AudioTrack.getMinBufferSize(
+                        warmRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT);
+                int bufferSize = Math.max(minBuffer > 0 ? minBuffer * 2 : 0, warmRate);
+                AudioFormat format = new AudioFormat.Builder()
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setSampleRate(warmRate)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                        .build();
+                AudioAttributes attributes = new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build();
+                track = new AudioTrack(attributes, format, bufferSize,
+                        AudioTrack.MODE_STREAM, AudioManager.AUDIO_SESSION_ID_GENERATE);
+                track.setVolume(0f);
+                track.play();
+                ttsWarmTrack = track;
+                ttsWarmFeeding = true;
+                byte[] silence = new byte[Math.max(2, warmRate / 2)];
+                while (ttsWarmRunning) {
+                    if (!ttsWarmFeeding) {
+                        Thread.sleep(20);
+                        continue;
+                    }
+                    if (track.write(silence, 0, silence.length) <= 0) {
+                        break;
+                    }
+                }
+            } catch (Exception e) {
+                ttsLog("warm failed " + e);
+            } finally {
+                releaseTrack(track);
+                if (ttsWarmTrack == track) {
+                    ttsWarmTrack = null;
+                }
+            }
+        }, "tts-warm");
+        ttsWarmThread.start();
+        ttsLog("warm up");
+    }
+
+    void ttsCooldown() {
+        if (!ttsWarmRunning) {
+            return;
+        }
+        ttsWarmRunning = false;
+        AudioTrack track = ttsWarmTrack;
+        if (track != null) {
+            try {
+                track.pause();
+                track.flush();
+            } catch (Exception ignored) {
+            }
+        }
+        ttsLog("warm down");
+    }
+
+    /** 创建播放器：先垫 100ms 静音再起播，避免 play() 之前写入的数据被丢弃 */
+    private AudioTrack openTtsTrack(int rate) {
+        try {
+            int bufferSize = ttsBufferSize > 0 ? ttsBufferSize : Math.max(rate * 2, 8192);
+            AudioTrack track;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                AudioAttributes attributes = new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build();
+                AudioFormat format = new AudioFormat.Builder()
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setSampleRate(rate)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                        .build();
+                track = new AudioTrack(attributes, format, bufferSize,
+                        AudioTrack.MODE_STREAM, AudioManager.AUDIO_SESSION_ID_GENERATE);
+            } else {
+                track = new AudioTrack(AudioManager.STREAM_MUSIC, rate,
+                        AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT,
+                        bufferSize, AudioTrack.MODE_STREAM);
+            }
+            track.setVolume(1f);
+            int leadBytes = Math.max(2, rate * 2 * 100 / 1000);
+            ttsLeadFrames = leadBytes / 2L;
+            byte[] silence = new byte[leadBytes];
+            int written = 0;
+            while (written < leadBytes) {
+                int w = track.write(silence, written, leadBytes - written);
+                if (w <= 0) {
+                    break;
+                }
+                written += w;
+            }
+            track.play();
+            if (track.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) {
+                Thread.sleep(120);
+                track.play();
+            }
+            return track;
+        } catch (Exception e) {
+            ttsLog("open failed " + e);
+            return null;
+        }
+    }
+
+    /** 等播放头动起来（说明真的在出声），超时返回 false */
+    private boolean waitHeadAdvance(AudioTrack track, long timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                if ((track.getPlaybackHeadPosition() & 0xFFFFFFFFL) > 0) {
+                    return true;
+                }
+                Thread.sleep(30);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+                return false;
+            } catch (Exception ignored) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    private void releaseTrack(AudioTrack track) {
+        if (track == null) {
+            return;
+        }
+        try {
+            if (track.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
+                track.stop();
+            }
+        } catch (Exception ignored) {
+        }
+        try {
+            track.release();
+        } catch (Exception ignored) {
+        }
     }
 
     /** 追加一段 base64 的 16-bit 小端单声道 PCM（24k），内部重采样到设备采样率再播放 */
@@ -1117,10 +1271,10 @@ public class MainActivity extends AppCompatActivity {
                 try {
                     // 等待时长按音频实际长度算，避免异常状态下死等
                     long maxWait = Math.min(60000L,
-                            ttsFramesWritten * 1000L / Math.max(1, ttsOutRate) + 4000L);
+                            ttsFramesWritten * 1000L / Math.max(1, ttsOutRate) + 3000L);
                     long deadline = System.currentTimeMillis() + maxWait;
                     while (!ttsCancelled && System.currentTimeMillis() < deadline) {
-                        long played = track.getPlaybackHeadPosition() & 0xFFFFFFFFL;
+                        long played = (track.getPlaybackHeadPosition() & 0xFFFFFFFFL) - ttsHeadBase;
                         if (played >= ttsFramesWritten - ttsOutRate / 20L) {
                             break;
                         }
@@ -1135,7 +1289,10 @@ public class MainActivity extends AppCompatActivity {
                 ttsUnderruns = finished.getUnderrunCount();
             }
             long expected = ttsInRate > 0 ? ttsInTotal * ttsOutRate / ttsInRate : 0;
+            long head = finished != null ? (finished.getPlaybackHeadPosition() & 0xFFFFFFFFL) : -1;
+            int playState = finished != null ? finished.getPlayState() : -1;
             ttsLog("end in=" + ttsInTotal + " out=" + ttsFramesWritten + " expect=" + expected
+                    + " head=" + head + " playState=" + playState
                     + " bytes=" + ttsBytesQueued + " underruns=" + ttsUnderruns);
             releaseTtsTrack();
             notifyTtsEnded();
@@ -1197,18 +1354,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void restoreAudioMode() {
-        int previous = ttsPreviousMode;
         ttsPreviousMode = -1;
-        if (previous == -1) {
-            return;
-        }
         try {
             AudioManager manager = (AudioManager) getSystemService(AUDIO_SERVICE);
-            if (manager != null) {
-                manager.setMode(previous);
+            if (manager != null && manager.getMode() != AudioManager.MODE_NORMAL) {
+                manager.setMode(AudioManager.MODE_NORMAL);
             }
         } catch (Exception ignored) {
-            // 还原失败忽略
+            // 忽略
         }
     }
 
@@ -1413,6 +1566,18 @@ public class MainActivity extends AppCompatActivity {
         ttsPlaying = false;
         ttsBytesQueued = 0;
         resetResampler();
+        if (ttsUsingWarm) {
+            ttsUsingWarm = false;
+            if (track != null) {
+                try {
+                    track.setVolume(0f);
+                } catch (Exception ignored) {
+                }
+            }
+            ttsWarmFeeding = true;
+            restoreAudioMode();
+            return;
+        }
         if (track != null) {
             try {
                 if (track.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
