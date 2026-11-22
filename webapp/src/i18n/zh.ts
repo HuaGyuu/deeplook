@@ -289,6 +289,7 @@ export const zh = {
   voiceCallSpeaking: '正在回答…',
   voiceCallStatusIdle: '按住下方按钮开始说话',
   voiceCallRelease: '松开发送',
+  voiceCallTapToInterrupt: '轻触屏幕可打断',
   voiceCallHint: '按住说话，松开发送；AI 回答会自动朗读，按住时暂停朗读。',
   voiceCallEntry: '语音通话',
   updateDownloadFailedHint: '由于服务器问题下载失败，可以关注作者公众号发送 deeplook 获取最新版安装包',

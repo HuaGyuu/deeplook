@@ -298,6 +298,7 @@ export const en = {
   voiceCallSpeaking: 'Answering…',
   voiceCallStatusIdle: 'Hold the button below to talk',
   voiceCallRelease: 'Release to send',
+  voiceCallTapToInterrupt: 'Tap the screen to interrupt',
   voiceCallHint: 'Hold to talk, release to send. Replies are read aloud and pause when you hold the button.',
   voiceCallEntry: 'Voice call',
   updateDownloadFailedHint: 'Download failed due to a server problem. Follow the author\'s WeChat account and send \'deeplook\' to get the latest APK.',

@@ -7,6 +7,10 @@ import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.media.AudioAttributes;
+import android.media.AudioFormat;
+import android.media.AudioManager;
+import android.media.AudioTrack;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -975,6 +979,136 @@ public class MainActivity extends AppCompatActivity {
     /** 分片回传页面时的原始字节数（base64 后约 4/3） */
     private static final int IMPORT_CHUNK_BYTES = 384 * 1024;
 
+    // ---------------- TTS 播放：AudioTrack 走媒体音量 ----------------
+
+    private final java.util.concurrent.ExecutorService ttsExecutor =
+            java.util.concurrent.Executors.newSingleThreadExecutor();
+    private volatile AudioTrack ttsTrack;
+    private volatile boolean ttsCancelled;
+    private volatile long ttsFramesWritten;
+    private volatile int ttsSampleRate = 24000;
+
+    /** 开始一段语音合成播放：USAGE_MEDIA / CONTENT_TYPE_SPEECH，音量跟随媒体 */
+    void ttsStart(int sampleRate) {
+        ttsSampleRate = sampleRate > 0 ? sampleRate : 24000;
+        ttsCancelled = false;
+        ttsFramesWritten = 0;
+        final int rate = ttsSampleRate;
+        ttsExecutor.execute(() -> {
+            releaseTtsTrack();
+            try {
+                int minBuffer = AudioTrack.getMinBufferSize(
+                        rate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT);
+                int bufferSize = Math.max(minBuffer > 0 ? minBuffer : rate / 4, rate / 4);
+                AudioTrack track;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    AudioAttributes attributes = new AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_MEDIA)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                            .build();
+                    AudioFormat format = new AudioFormat.Builder()
+                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                            .setSampleRate(rate)
+                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                            .build();
+                    track = new AudioTrack(attributes, format, bufferSize,
+                            AudioTrack.MODE_STREAM, AudioManager.AUDIO_SESSION_ID_GENERATE);
+                } else {
+                    track = new AudioTrack(AudioManager.STREAM_MUSIC, rate,
+                            AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT,
+                            bufferSize, AudioTrack.MODE_STREAM);
+                }
+                track.play();
+                ttsTrack = track;
+            } catch (Exception e) {
+                ttsTrack = null;
+            }
+        });
+    }
+
+    /** 追加一段 base64 的 16-bit 小端单声道 PCM */
+    void ttsWrite(String base64Chunk) {
+        if (ttsCancelled || base64Chunk == null || base64Chunk.isEmpty()) {
+            return;
+        }
+        final byte[] data;
+        try {
+            data = Base64.decode(base64Chunk, Base64.DEFAULT);
+        } catch (IllegalArgumentException e) {
+            return;
+        }
+        ttsExecutor.execute(() -> {
+            AudioTrack track = ttsTrack;
+            if (track == null || ttsCancelled) {
+                return;
+            }
+            try {
+                int written = track.write(data, 0, data.length);
+                if (written > 0) {
+                    ttsFramesWritten += written / 2L;
+                }
+            } catch (Exception ignored) {
+                // 播放中断时写入会失败，忽略
+            }
+        });
+    }
+
+    /** 写完后调用：等缓冲区播完再释放，并通知页面播放结束 */
+    void ttsEnd() {
+        ttsExecutor.execute(() -> {
+            AudioTrack track = ttsTrack;
+            if (track != null && !ttsCancelled) {
+                try {
+                    long deadline = System.currentTimeMillis() + 180000;
+                    while (!ttsCancelled && System.currentTimeMillis() < deadline) {
+                        long played = track.getPlaybackHeadPosition() & 0xFFFFFFFFL;
+                        if (played >= ttsFramesWritten - ttsSampleRate / 20L) {
+                            break;
+                        }
+                        Thread.sleep(40);
+                    }
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            releaseTtsTrack();
+            notifyTtsEnded();
+        });
+    }
+
+    /** 立即打断：停掉播放并丢弃剩余数据 */
+    void ttsCancel() {
+        ttsCancelled = true;
+        ttsExecutor.execute(this::releaseTtsTrack);
+    }
+
+    private void releaseTtsTrack() {
+        AudioTrack track = ttsTrack;
+        ttsTrack = null;
+        if (track == null) {
+            return;
+        }
+        try {
+            if (track.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
+                track.stop();
+            }
+        } catch (Exception ignored) {
+        }
+        try {
+            track.release();
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void notifyTtsEnded() {
+        mainHandler.post(() -> {
+            if (webView != null) {
+                webView.evaluateJavascript(
+                        "window.__deeplookTtsEnded && window.__deeplookTtsEnded()", null);
+            }
+        });
+    }
+
     /** 从下载链接导入：原生下载到 cache，再分片回传给页面做导入 */
     void importHistoryFromUrl(@Nullable String urlString) {
         if (historyImportRunning) {
@@ -1660,6 +1794,8 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        ttsCancel();
+        ttsExecutor.shutdownNow();
         historyImportCancelled = true;
         mainHandler.removeCallbacks(diagTick);
         closeDownloadStream();

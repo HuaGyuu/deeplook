@@ -136,6 +136,13 @@
   line-height: 22px;
 }
 
+.interruptHint {
+  margin-top: -10px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
 .footer {
   display: flex;
   flex-shrink: 0;

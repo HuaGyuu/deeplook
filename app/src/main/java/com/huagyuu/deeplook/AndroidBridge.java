@@ -58,6 +58,27 @@ final class AndroidBridge {
     public void deleteHistoryImport() {
         activity.deleteHistoryImport();
     }
+
+    /** TTS 播放：走原生 AudioTrack（媒体音量），分片写入 PCM */
+    @JavascriptInterface
+    public void ttsStart(int sampleRate) {
+        activity.ttsStart(sampleRate);
+    }
+
+    @JavascriptInterface
+    public void ttsWrite(String base64Chunk) {
+        activity.ttsWrite(base64Chunk);
+    }
+
+    @JavascriptInterface
+    public void ttsEnd() {
+        activity.ttsEnd();
+    }
+
+    @JavascriptInterface
+    public void ttsCancel() {
+        activity.ttsCancel();
+    }
 }
 
 

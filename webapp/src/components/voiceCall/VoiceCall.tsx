@@ -253,7 +253,15 @@ export const VoiceCall = () => {
           <IconCallOutline16 />
         </button>
       </div>
-      <div className={styles.stage}>
+      <div
+        className={styles.stage}
+        onPointerDown={() => {
+          // 轻触屏幕即可打断正在朗读的回复
+          if (speaking) {
+            stopSpeech()
+          }
+        }}
+      >
         <div
           className={clsx(
             styles.avatar,
@@ -272,6 +280,7 @@ export const VoiceCall = () => {
         <div className={styles.status} role="status" aria-live="polite">
           {statusText}
         </div>
+        {speaking ? <div className={styles.interruptHint}>{t('voiceCallTapToInterrupt')}</div> : null}
       </div>
       <div className={styles.footer}>
         <button
