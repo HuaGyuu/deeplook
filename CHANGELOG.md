@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.11.13-preview
+
+- 账号管理登录按钮居中。
+- 修复登录页顶部压到状态栏：登录界面避开状态栏，并显示登录/取 Key 的实时状态。
+- 修复登录成功但没反应：登录后自动跳到 API Keys 页，自动创建名为 DeepLook 的 Key 并读取保存（已实测成功）；同时抓取账号头像。
+
+
 ## 1.11.12-preview（测试版，独立包名 com.huagyuu.deeplook.preview）
 
 - 新增 DeepSeek 账号管理：设置 → 账号管理，可登录 DeepSeek 官方账号；登录页内嵌官方网页（不保存账号密码）。

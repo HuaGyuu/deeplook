@@ -241,8 +241,7 @@ const AccountSettings = () => {
       ) : (
         <>
           <p className={styles.subpageHint}>{t('accountLoginHint')}</p>
-          <div className={styles.subpageActions}>
-            <span />
+          <div className={styles.centerAction}>
             <Button variant="primary" size="m" onClick={startLogin}>
               {t('loginWithDeepSeek')}
             </Button>

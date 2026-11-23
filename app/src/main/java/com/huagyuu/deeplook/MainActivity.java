@@ -1536,25 +1536,39 @@ public class MainActivity extends AppCompatActivity {
 
     private Dialog accountLoginDialog;
 
-    /** 登录页里执行：自动点创建 Key，并读取页面上的 sk- Key 与头像昵称 */
+    /** 登录页里执行：登录后跳到 API Keys 页，自动创建/读取 sk- Key */
     private static final String LOGIN_SCANNER_JS =
-            "(function(){if(window.__dsScanStarted)return;window.__dsScanStarted=true;var sent=false;" +
-            "function send(k){if(sent)return;sent=true;try{DSLogin.onKey(k)}catch(e){}}" +
+            "(function(){if(window.__dsScanStarted)return;window.__dsScanStarted=true;var sent=false,ticks=0;" +
+            "function status(s){try{DSLogin.onStatus(s)}catch(e){}}" +
+            "function send(k){if(sent)return;sent=true;status('已获取 API Key');try{DSLogin.onKey(k)}catch(e){}}" +
+            "function setVal(el,v){try{var d=Object.getOwnPropertyDescriptor(el.constructor.prototype,'value');" +
+            "d.set.call(el,v);}catch(e){el.value=v;}el.dispatchEvent(new Event('input',{bubbles:true}));" +
+            "el.dispatchEvent(new Event('change',{bubbles:true}));}" +
             "function profile(){try{var img=document.querySelector('img[src^=\"https://\"]');" +
             "var n=document.querySelector('[class*=\"name\"],[class*=\"nick\"]');" +
             "var name=n&&n.textContent?n.textContent.trim():'';" +
             "if(img||name)DSLogin.onProfile(name.slice(0,40),img?img.src:'')}catch(e){}}" +
-            "setInterval(function(){try{var text=document.body?document.body.innerText:'';" +
-            "var m=text.match(/sk-[A-Za-z0-9]{20,}/);if(m){send(m[0]);return;}profile();" +
-            "var dlgs=Array.prototype.slice.call(document.querySelectorAll('[role=\"dialog\"],.ds-modal,.ant-modal,.modal'))" +
+            "status('等待登录…');" +
+            "setInterval(function(){try{ticks++;" +
+            "var text=document.body?document.body.innerText:'';" +
+            "var m=text.match(/sk-[A-Za-z0-9]{20,}/);if(m){send(m[0]);return;}" +
+            "profile();" +
+            "var p=location.pathname||'';var onLogin=/sign_in|login/i.test(p);" +
+            "if(!onLogin)status('已登录，正在准备 API Key…');" +
+            "if(!onLogin&&!/api_keys/.test(p)&&ticks>2&&!window.__dsToKeys){window.__dsToKeys=true;" +
+            "location.href='https://platform.deepseek.com/api_keys';return;}" +
+            "var els=Array.prototype.slice.call(document.querySelectorAll('button,[role=\"button\"],a,div[class*=\"btn\"],div[class*=\"button\"]'));" +
+            "var dlgs=Array.prototype.slice.call(document.querySelectorAll('[role=\"dialog\"],[class*=\"modal\"],[class*=\"dialog\"]'))" +
             ".filter(function(d){return d.offsetParent!==null});var dlg=dlgs[0];" +
-            "if(dlg){var input=dlg.querySelector('input');" +
-            "if(input&&!input.value){input.value='DeepLook';input.dispatchEvent(new Event('input',{bubbles:true}))}" +
-            "var ok=Array.prototype.slice.call(dlg.querySelectorAll('button')).filter(function(b){return /确定|创建|确认|完成|Create|OK|Confirm/i.test(b.innerText||'')})[0];" +
-            "if(ok&&!window.__dsOk){window.__dsOk=true;ok.click()}}" +
-            "else if(!window.__dsCreate){var b=Array.prototype.slice.call(document.querySelectorAll('button'))" +
-            ".filter(function(x){return /创建|新建|create/i.test(x.innerText||'')})[0];" +
-            "if(b){window.__dsCreate=true;b.click()}}}catch(e){}},1200);})();";
+            "if(dlg){status('正在创建 API Key…');var input=dlg.querySelector('input');" +
+            "if(input&&input.value!=='DeepLook'){setVal(input,'DeepLook');}" +
+            "var scope=Array.prototype.slice.call(dlg.querySelectorAll('button,[role=\"button\"],a,div[class*=\"btn\"],div[class*=\"button\"]'));" +
+            "var ok=scope.filter(function(b){var t=(b.innerText||'').trim();" +
+            "return /^(创建|确定|确认|完成|创建 API key|Create|OK|Confirm)$/i.test(t)||(/创建|确定|确认|Create|Confirm/i.test(t)&&!/取消|Cancel/i.test(t))})[0];" +
+            "if(ok&&!window.__dsOk){window.__dsOk=true;status('点击创建…');ok.click()}}" +
+            "else if(!window.__dsCreate&&/api_keys/.test(p)){var b=els.filter(function(x){return /创建|新建|create/i.test(x.innerText||'')})[0];" +
+            "if(b){window.__dsCreate=true;status('已找到创建按钮，正在点击…');b.click()}}" +
+            "}catch(e){}},1200);})();";
 
     private class AccountLoginBridge {
         @JavascriptInterface
@@ -1585,7 +1599,18 @@ public class MainActivity extends AppCompatActivity {
             editor.apply();
             mainHandler.post(() -> notifyAccountChanged("profile"));
         }
+
+        @JavascriptInterface
+        public void onStatus(String text) {
+            mainHandler.post(() -> {
+                if (accountLoginStatus != null && text != null) {
+                    accountLoginStatus.setText(text);
+                }
+            });
+        }
     }
+
+    private volatile TextView accountLoginStatus;
 
     /** 打开 DeepSeek 官方登录页（内嵌 WebView，不保存账号密码） */
     void openDeepSeekLogin() {
@@ -1599,8 +1624,6 @@ public class MainActivity extends AppCompatActivity {
             webSettings.setDomStorageEnabled(true);
             webSettings.setJavaScriptCanOpenWindowsAutomatically(true);
             webSettings.setSupportMultipleWindows(false);
-            webSettings.setUserAgentString("Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 "
-                    + "(KHTML, like Gecko) Version/4.0 Chrome/120.0 Mobile Safari/537.36");
             loginView.setWebViewClient(new WebViewClient() {
                 @Override
                 public void onPageFinished(WebView view, String url) {
@@ -1611,23 +1634,51 @@ public class MainActivity extends AppCompatActivity {
             loginView.loadUrl("https://platform.deepseek.com/api_keys");
 
             Dialog dialog = new Dialog(this, android.R.style.Theme_Material_Light_NoActionBar);
-            FrameLayout container = new FrameLayout(this);
-            container.addView(loginView, new FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            LinearLayout layout = new LinearLayout(this);
+            layout.setOrientation(LinearLayout.VERTICAL);
+            layout.setBackgroundColor(0xFFFFFFFF);
+            int statusBarHeight = 0;
+            int resId = getResources().getIdentifier("status_bar_height", "dimen", "android");
+            if (resId > 0) {
+                statusBarHeight = getResources().getDimensionPixelSize(resId);
+            }
+            layout.setPadding(0, statusBarHeight, 0, 0);
+
+            LinearLayout bar = new LinearLayout(this);
+            bar.setOrientation(LinearLayout.HORIZONTAL);
+            bar.setGravity(Gravity.CENTER_VERTICAL);
+            bar.setPadding(dp(16), dp(10), dp(8), dp(10));
+            TextView statusView = new TextView(this);
+            statusView.setText("等待登录…");
+            statusView.setTextColor(0xFF5B6B85);
+            statusView.setTextSize(13);
+            LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            bar.addView(statusView, statusParams);
             Button close = new Button(this);
             close.setText("关闭");
             close.setTextColor(0xFF1D2430);
-            FrameLayout.LayoutParams closeParams = new FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            closeParams.gravity = Gravity.TOP | Gravity.END;
-            closeParams.setMargins(0, 24, 16, 0);
-            container.addView(close, closeParams);
+            bar.addView(close, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
             close.setOnClickListener(v -> dialog.dismiss());
-            dialog.setContentView(container);
-            dialog.setOnDismissListener(d -> accountLoginDialog = null);
+            layout.addView(bar, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            layout.addView(loginView, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+
+            accountLoginStatus = statusView;
+            dialog.setContentView(layout);
+            dialog.setOnDismissListener(d -> {
+                accountLoginDialog = null;
+                accountLoginStatus = null;
+            });
             accountLoginDialog = dialog;
             dialog.show();
         });
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
     }
 
     /** 读取已保存的登录态（JSON） */
