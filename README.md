@@ -4,7 +4,7 @@
 
 <h1 align="center">DeepLook</h1>
 
-<p align="center">基于 DeepSeek 官方 API 的安卓聊天客户端：WebView 套壳 + React/TypeScript 网页层 + 原生能力补齐</p>
+<p align="center">基于 DeepSeek 官方接口的安卓聊天客户端：WebView 套壳 + React/TypeScript 网页层 + 原生能力补齐</p>
 
 <p align="center">
   <a href="https://github.com/HuaGyuu/deeplook/releases"><img src="https://img.shields.io/github/v/release/HuaGyuu/deeplook?include_prereleases&sort=semver" alt="Release" /></a>
@@ -15,7 +15,9 @@
 
 界面参考 DeepSeek 官方 chat-demo，并针对手机做了一整套适配与定制：
 
-- 固定使用 DeepSeek 官方 API 与 `deepseek-flash` 模型，只需填 API Key；
+- 固定使用 DeepSeek 官方接口与 `deepseek-flash` 模型：**支持 DeepSeek 账号授权登录**（应用内官方授权页，登录即用），也可手动填 API Key；
+- **首次启动隐私说明**：明确告知数据只存本机、不收集不上报、凭据安全、请求直达官方、开源可查；
+- **账号管理**：登录后显示昵称 / 头像 / 账号余额，聊天与余额都走账号身份，无需再建 API Key；
 - **语音输入**：输入框「按住说话」，松手转文字直接发出，上滑取消；
 - **语音通话**：顶栏电话按钮进入通话页，按住说话 → 转写发送 → 回复按句朗读，按住时暂停朗读；
 - **附件**：加号展开拍照 / 相册 / 文件，拍照直连系统相机；
@@ -30,7 +32,9 @@
 - 应用内检查更新：关于页请求 GitHub 最新 Release，直接下载安装 APK；
 - 深色模式、跟随系统主题、中英文切换、历史对话导入导出、朗读回复。
 
-> 本项目只做客户端，不代理也不存储你的聊天内容；API Key 与全部数据只保存在本机。
+> 本项目只做客户端，不代理也不存储你的聊天内容；账号令牌 / API Key 与全部数据只保存在本机。
+>
+> DeepLook 是**第三方客户端，并非 DeepSeek 官方产品**。
 
 ## 截图
 
@@ -45,7 +49,10 @@
 ## 下载安装
 
 前往 [Releases](https://github.com/HuaGyuu/deeplook/releases) 下载最新的 `deeplook-x.y.z.apk`，
-传到手机安装（需允许安装未知来源应用），首次打开后到「设置 → 数据管理」填入 DeepSeek API Key 即可使用。
+传到手机安装（需允许安装未知来源应用）。首次打开会显示隐私与安全说明，点「我已知晓」后：
+
+- 推荐到「设置 → 账号管理 → 登录 DeepSeek 账号」，在应用内官方授权页完成登录，之后直接用账号身份聊天；
+- 也可以到「设置 → 数据管理」手动填入 DeepSeek API Key。
 
 - 包名：`com.huagyuu.deeplook`
 - 最低系统：Android 8.0（API 26），目标 Android 16（API 36）
@@ -60,9 +67,10 @@
 - **语音**：录音转写、按住说话上滑取消、语音通话（按住说话 + 按句朗读）、朗读回复。
 - **人设**：AI 人设 + 用户人设写进 system prompt，新对话自动生效。
 - **个性化**：聊天背景图（手机比例取景框裁剪、单指拖动、双指缩放、发白程度滑杆）。
-- **设置**：独立页面，分组二级菜单；账户、数据管理、人设、个性化、外观、语言、位置、朗读音色、关于。
+- **设置**：独立页面，分组二级菜单；账号管理（DeepSeek 账号登录 / 昵称头像 / 退出登录）、数据管理、人设、个性化、外观、语言、位置、朗读音色、关于。
 - **手势**：聊天页右滑打开侧边栏（跟手 + 甩动判定），抽屉左滑关闭；Android 返回键优先关闭设置 / 抽屉，最后退到后台。
-- **原生壳**：WebViewAssetLoader 安全加载、文件 / 相册 / 相机、导出 ZIP 下载、麦克风权限、键盘避让、外链跳转、应用内更新安装。
+- **原生壳**：WebViewAssetLoader 安全加载、文件 / 相册 / 相机、导出 ZIP 下载、麦克风权限、键盘避让、外链跳转、应用内更新安装、应用内账号授权。
+- **原生语音**：回复朗读与语音通话走原生 AudioTrack（媒体音量、设备采样率），低延迟且不受铃声静音影响。
 
 ## 技术栈
 
@@ -116,7 +124,8 @@ deeplook/
 │       │   ├── voiceCall/           语音通话浮层
 │       │   ├── session/             会话视图、顶栏、压缩
 │       │   ├── sider/               侧边栏、抽屉、余额卡片
-│       │   └── settings/            设置页、人设、个性化、关于、更新检查
+│       │   ├── privacy/             首次启动隐私与安全说明
+│       │   └── settings/            设置页、账号管理、人设、个性化、关于、更新检查
 │       └── services/                设置、会话存储（IndexedDB）、API、语音、更新
 ├── scripts/                  build-web.ps1 / build-apk.ps1 / publish-release.cjs
 ├── gradle/, gradlew, gradlew.bat    Gradle Wrapper（8.14.3）
@@ -125,10 +134,20 @@ deeplook/
 └── LICENSE                   MIT
 ```
 
+## 隐私与安全
+
+- **数据只存本机**：会话在 IndexedDB、设置项在 localStorage、附件在本机；不上传到任何第三方服务器。
+- **不收集、不上报**：没有账号系统、没有统计埋点、没有广告 SDK。
+- **凭据安全**：账号令牌 / API Key 只保存在 App 私有存储；账号登录使用 DeepSeek 官方授权页，App 不保存账号密码。
+- **请求直达官方**：聊天请求直接发往 `api.deepseek.com`，不经过任何中转服务器。
+- **开源可查**：完整源码公开在本仓库，可自行审查。
+- 首次启动会展示以上说明（只显示一次）；详见 [CHANGELOG.md](CHANGELOG.md)。
+
 ## 说明
 
+- 账号登录：走 DeepSeek Harness 开源的账号授权协议（PKCE），在应用内 WebView 打开官方授权页并拦截回环回调换取令牌；令牌无刷新机制，失效后重新登录即可。
 - 网络：`settings.gradle` 优先使用阿里云 Maven 镜像、Gradle Wrapper 使用腾讯云镜像；海外环境可改回官方源（文件内有注释）。
-- 数据：API Key、人设、聊天背景与全部会话只存在本机 WebView 存储中；会话正文在 IndexedDB，设置项在 localStorage。
+- 数据：账号令牌 / API Key、人设、聊天背景与全部会话只存在本机；账号令牌在 Android 应用私有存储，网页数据在 IndexedDB / localStorage。
 - 兼容性：网页层不使用 `dvh` 等较新的 CSS 单位，保证系统 WebView 较老的机型也能正常布局。
 - 更新记录见 [CHANGELOG.md](CHANGELOG.md)。
 
