@@ -1545,9 +1545,14 @@ public class MainActivity extends AppCompatActivity {
             "d.set.call(el,v);}catch(e){el.value=v;}el.dispatchEvent(new Event('input',{bubbles:true}));" +
             "el.dispatchEvent(new Event('change',{bubbles:true}));}" +
             "function profile(){try{var img=document.querySelector('img[src^=\"https://\"]');" +
-            "var n=document.querySelector('[class*=\"name\"],[class*=\"nick\"]');" +
+            "var n=document.querySelector('[class*=\"name\"],[class*=\"nick\"],[class*=\"user\"]');" +
             "var name=n&&n.textContent?n.textContent.trim():'';" +
-            "if(img||name)DSLogin.onProfile(name.slice(0,40),img?img.src:'')}catch(e){}}" +
+            "if(!name&&!window.__dsNameTried&&img){window.__dsNameTried=true;try{img.click();" +
+            "setTimeout(function(){try{var menus=Array.prototype.slice.call(document.querySelectorAll('[role=\"menu\"],[class*=\"menu\"],[class*=\"dropdown\"],[class*=\"popover\"]')).filter(function(x){return x.offsetParent!==null});" +
+            "var txt=menus[0]?(menus[0].innerText||''):'';var first=(txt.split('\\n')[0]||'').trim();" +
+            "if(first&&first.length<=30)DSLogin.onProfile(first,img?img.src:'');" +
+            "document.body.click();}catch(e){}},700);}catch(e){}}" +
+            "if(img||name)DSLogin.onProfile((name||'').slice(0,30),img?img.src:'')}catch(e){}}" +
             "status('等待登录…');" +
             "setInterval(function(){try{ticks++;" +
             "var text=document.body?document.body.innerText:'';" +
@@ -1708,9 +1713,15 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         String account = getAccountJson();
-        String js = "if(window.__deeplookAccount){var a=" + account + ";"
-                + "if(a.key){window.__deeplookAccount.onKey(a.key);}"
-                + "window.__deeplookAccount.onProfile(a.name,a.avatar);}";
+        String js;
+        if ("logout".equals(reason)) {
+            js = "window.__deeplookAccount && window.__deeplookAccount.onLogout && "
+                    + "window.__deeplookAccount.onLogout()";
+        } else {
+            js = "if(window.__deeplookAccount){var a=" + account + ";"
+                    + "if(a.key){window.__deeplookAccount.onKey(a.key);}"
+                    + "window.__deeplookAccount.onProfile(a.name,a.avatar);}";
+        }
         webView.evaluateJavascript(js, null);
     }
 

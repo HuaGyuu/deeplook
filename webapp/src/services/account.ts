@@ -82,6 +82,7 @@ if (typeof window !== 'undefined') {
       __deeplookAccount?: {
         onKey: (key: string) => void
         onProfile: (name: string, avatar: string) => void
+        onLogout: () => void
       }
     }
   ).__deeplookAccount = {
@@ -97,6 +98,9 @@ if (typeof window !== 'undefined') {
         name: name || state.name,
         avatar: avatar || state.avatar,
       }))
+    },
+    onLogout: () => {
+      useAccount.setState({ loggedIn: false, name: '', avatar: '', key: null })
     },
   }
 }

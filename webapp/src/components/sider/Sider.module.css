@@ -403,8 +403,8 @@
 
 
 .settingsAvatar {
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   object-fit: cover;
 }
@@ -413,8 +413,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: var(--dsw-alias-brand-primary, #4d6bfe);
   color: #fff;
