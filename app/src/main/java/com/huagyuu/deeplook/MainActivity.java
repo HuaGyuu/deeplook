@@ -1541,19 +1541,22 @@ public class MainActivity extends AppCompatActivity {
     private volatile boolean oauthRunning;
 
     void startDeepSeekOAuth() {
-        ttsLog("startDeepSeekOAuth called running=" + oauthRunning);
+        oauthLog("start running=" + oauthRunning);
         if (oauthRunning) {
+            notifyAccountStatus("登录进行中，请在浏览器完成授权");
             return;
         }
         oauthRunning = true;
-        ttsLog("oauth start");
+        oauthLog("oauth start");
         notifyAccountStatus("正在请求授权…");
         new Thread(() -> {
             java.net.ServerSocket server = null;
             try {
                 server = new java.net.ServerSocket(0, 1, java.net.InetAddress.getByName("127.0.0.1"));
                 server.setSoTimeout(300000);
+                server.setSoTimeout(900000);
                 String redirectUri = "http://127.0.0.1:" + server.getLocalPort() + "/oauth/callback";
+                oauthLog("redirect=" + redirectUri);
                 String verifier = randomB64Url(32);
                 String challenge = sha256B64Url(verifier);
                 String state = randomB64Url(32);
@@ -1565,16 +1568,26 @@ public class MainActivity extends AppCompatActivity {
                         .put("redirect_uri", redirectUri)
                         .put("locale", "zh_CN")
                         .put("login_source", "web");
-                ttsLog("auth_init sending");
+                oauthLog("auth_init sending");
                 JSONObject initBiz = postPlatform("/auth-api/v0/dsh/auth_init", initBody, null);
-                ttsLog("auth_init ok " + initBiz.optString("authorize_id"));
+                oauthLog("auth_init ok");
                 String authorizeUrl = initBiz.getString("authorize_url");
-                ttsLog("authorize url host=" + android.net.Uri.parse(authorizeUrl).getHost());
+                oauthLog("authorize url host=" + android.net.Uri.parse(authorizeUrl).getHost());
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        startForegroundService(new Intent(this, OAuthWaitService.class));
+                    } else {
+                        startService(new Intent(this, OAuthWaitService.class));
+                    }
+                    oauthLog("fgs requested");
+                } catch (Exception fgsError) {
+                    oauthLog("fgs failed " + fgsError);
+                }
                 openBrowser(authorizeUrl);
                 notifyAccountStatus("等待浏览器授权…");
 
                 String code = null;
-                long deadline = System.currentTimeMillis() + 300000;
+                long deadline = System.currentTimeMillis() + 900000;
                 while (code == null && System.currentTimeMillis() < deadline) {
                     java.net.Socket socket = server.accept();
                     try {
@@ -1603,16 +1616,23 @@ public class MainActivity extends AppCompatActivity {
                                 }
                             }
                         }
-                        String html = "<html><body style='font-family:sans-serif;padding:40px;text-align:center'>"
-                                + "<h2>授权完成</h2><p>请回到 DeepLook 测试版。</p></body></html>";
-                        String response = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n"
+                        boolean matched = receivedCode != null && state.equals(receivedState);
+                        String html = matched
+                                ? "<html><body style='font-family:sans-serif;padding:40px;text-align:center'>"
+                                + "<h2>授权完成</h2><p>请回到 DeepLook 测试版。</p></body></html>"
+                                : "<html><body style='font-family:sans-serif;padding:40px'>Not found</body></html>";
+                        String response = "HTTP/1.1 " + (matched ? "200 OK" : "404 Not Found")
+                                + "\r\nContent-Type: text/html; charset=utf-8\r\n"
                                 + "Content-Length: " + html.getBytes(java.nio.charset.StandardCharsets.UTF_8).length
                                 + "\r\nConnection: close\r\n\r\n" + html;
                         socket.getOutputStream().write(response.getBytes(java.nio.charset.StandardCharsets.UTF_8));
                         socket.getOutputStream().flush();
-                        if (receivedCode != null && state.equals(receivedState)) {
+                        if (matched) {
                             code = receivedCode;
+                            oauthLog("callback received");
                         }
+                    } catch (Exception connectionError) {
+                        oauthLog("callback conn error " + connectionError);
                     } finally {
                         try {
                             socket.close();
@@ -1633,7 +1653,7 @@ public class MainActivity extends AppCompatActivity {
                         .put("os_version", "Android " + Build.VERSION.RELEASE);
                 JSONObject exchangeBiz = postPlatform("/auth-api/v0/dsh/auth_exchange", exchangeBody, null);
                 String token = exchangeBiz.getString("token");
-                ttsLog("auth_exchange ok len=" + token.length());
+                oauthLog("auth_exchange ok len=" + token.length());
 
                 SharedPreferences prefs = getSharedPreferences("account", MODE_PRIVATE);
                 prefs.edit().putString("token", token)
@@ -1660,10 +1680,14 @@ public class MainActivity extends AppCompatActivity {
                 notifyAccountStatus("登录成功");
                 notifyAccountChanged("login");
             } catch (Exception error) {
-                ttsLog("oauth failed " + error);
+                oauthLog("oauth failed " + error);
                 notifyAccountStatus("登录失败：" + error.getMessage());
             } finally {
                 oauthRunning = false;
+                try {
+                    stopService(new Intent(this, OAuthWaitService.class));
+                } catch (Exception ignored) {
+                }
                 if (server != null) {
                     try {
                         server.close();
@@ -1787,6 +1811,24 @@ public class MainActivity extends AppCompatActivity {
 
     private JSONObject getPlatform(String path, String token) throws Exception {
         return performPlatform("GET", path, null, token);
+    }
+
+    /** 登录流程日志：写 logcat + 外部文件（便于直接 adb 拉取） */
+    private void oauthLog(String message) {
+        android.util.Log.d("DeepLookOAuth", message);
+        try {
+            java.io.File file = new java.io.File(getExternalFilesDir(null), "oauth.log");
+            if (file.length() > 64 * 1024) {
+                //noinspection ResultOfMethodCallIgnored
+                file.delete();
+            }
+            String line = new java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.US)
+                    .format(new java.util.Date()) + " " + message + "\n";
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(file, true)) {
+                out.write(line.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     private void notifyAccountStatus(String text) {
