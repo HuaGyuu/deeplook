@@ -53,6 +53,7 @@ import { Button } from '../base/Button.js'
 import { Modal } from '../base/Modal.js'
 import { Select } from '../base/Select.js'
 import { showToast } from '../base/toastState.js'
+import { logoutAccount, startLogin, useAccount } from '../../services/account.js'
 import { ApiKeyConfirm, ApiKeyField, useApiKeyEditor } from './ApiKeyField.js'
 import { closeSettings, registerSettingsBackHandler, useSettingsDialog, type SettingsSection } from './settingsDialogState.js'
 import styles from './Settings.module.css'
@@ -66,6 +67,7 @@ type SettingsPage =
   | 'language'
   | 'voice'
   | 'location'
+  | 'account'
   | 'data'
   | 'about'
 
@@ -76,6 +78,7 @@ const pageTitles: Record<Exclude<SettingsPage, 'root'>, TranslationKey> = {
   language: 'language',
   voice: 'settingsTtsVoice',
   location: 'settingsLocation',
+  account: 'accountManagement',
   data: 'dataManagement',
   about: 'aboutApp',
 }
@@ -159,10 +162,12 @@ const SettingsPageView = () => {
         {page === 'language' ? <LocaleSetting /> : null}
         {page === 'voice' ? <TtsVoiceSetting /> : null}
         {page === 'location' ? <LocationSetting /> : null}
+        {page === 'account' ? <AccountSettings /> : null}
         {page === 'about' ? <AboutApp /> : null}
         {page === 'data' ? (
           <>
             <ApiKeyField editor={apiKeyEditor} />
+            <LoginAccountCell onNavigate={() => setPage('account')} />
             <ImportHistory historyImport={historyImport} disabled={historyBusy} />
             <ImportHistoryUrl disabled={historyBusy} />
             <ExportHistory disabled={historyBusy} />
@@ -191,10 +196,68 @@ const SettingsPageView = () => {
   )
 }
 
+/** 数据管理里的「或登录 DeepSeek 账号」入口 */
+const LoginAccountCell = ({ onNavigate }: { onNavigate: () => void }) => {
+  const t = useTranslate()
+  const account = useAccount()
+  return (
+    <div className={styles.cell}>
+      <div className={styles.label}>{t('orLoginDeepSeek')}</div>
+      <p className={styles.description}>
+        {account.loggedIn ? t('accountLoggedInHint') : t('loginAutoKeyHint')}
+      </p>
+      <Button variant="outlined" size="m" onClick={onNavigate}>
+        {account.loggedIn ? t('accountManagement') : t('loginWithDeepSeek')}
+      </Button>
+    </div>
+  )
+}
+
+/** 账号管理：登录 DeepSeek 账号后自动使用账号的 API Key */
+const AccountSettings = () => {
+  const t = useTranslate()
+  const account = useAccount()
+  return (
+    <div className={styles.subpage}>
+      {account.loggedIn ? (
+        <>
+          <div className={styles.accountCard}>
+            <span className={styles.accountAvatar}>
+              {account.avatar ? <img src={account.avatar} alt="" /> : Array.from(account.name || 'D')[0]}
+            </span>
+            <span className={styles.accountInfo}>
+              <span className={styles.accountName}>{account.name || t('accountDeepSeekUser')}</span>
+              <span className={styles.accountStatus}>{t('accountLoggedIn')}</span>
+            </span>
+          </div>
+          <p className={styles.subpageHint}>{t('accountKeyInUse')}</p>
+          <div className={styles.subpageActions}>
+            <span />
+            <Button variant="dangerOutlined" size="m" onClick={logoutAccount}>
+              {t('logout')}
+            </Button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className={styles.subpageHint}>{t('accountLoginHint')}</p>
+          <div className={styles.subpageActions}>
+            <span />
+            <Button variant="primary" size="m" onClick={startLogin}>
+              {t('loginWithDeepSeek')}
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 /** 设置首页：分组列表，点每一项进入二级页面（类似 iOS 设置） */
 const SettingsRoot = ({ onNavigate }: { onNavigate: (page: SettingsPage) => void }) => {
   const t = useTranslate()
   const personaCount = usePersonas((state) => state.personas.length)
+  const accountLoggedIn = useAccount((state) => state.loggedIn)
   const settings = useSettings()
   const themeLabel =
     settings.themePreference === 'light'
@@ -219,6 +282,12 @@ const SettingsRoot = ({ onNavigate }: { onNavigate: (page: SettingsPage) => void
     {
       title: t('settingsGroupAccount'),
       rows: [
+        {
+          page: 'account',
+          icon: <IconPersonOutline16 />,
+          label: t('accountManagement'),
+          value: accountLoggedIn ? t('accountLoggedIn') : t('apiKeyStatusUnset'),
+        },
         {
           page: 'data',
           icon: <IconDataOutline16 />,

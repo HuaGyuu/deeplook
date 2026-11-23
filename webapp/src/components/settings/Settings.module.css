@@ -1278,3 +1278,53 @@
   border-color: var(--dsw-alias-brand-primary);
   background-color: var(--dsw-alias-brand-primary);
 }
+
+
+/* 账号管理 */
+.accountCard {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--dsw-specific-selector, rgba(120, 150, 200, 0.08));
+}
+
+.accountAvatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--dsw-alias-brand-primary, #4d6bfe);
+  color: #fff;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.accountAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.accountInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.accountName {
+  color: var(--dsw-alias-label-primary);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.accountStatus {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+}

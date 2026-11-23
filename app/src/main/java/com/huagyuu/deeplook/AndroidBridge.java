@@ -61,6 +61,26 @@ final class AndroidBridge {
 
     /** TTS 播放：走原生 AudioTrack（媒体音量），分片写入 PCM */
     @JavascriptInterface
+    public boolean isPreview() {
+        return BuildConfig.APPLICATION_ID.endsWith(".preview");
+    }
+
+    @JavascriptInterface
+    public void openDeepSeekLogin() {
+        activity.openDeepSeekLogin();
+    }
+
+    @JavascriptInterface
+    public String getAccount() {
+        return activity.getAccountJson();
+    }
+
+    @JavascriptInterface
+    public void logoutAccount() {
+        activity.logoutAccount();
+    }
+
+    @JavascriptInterface
     public void ttsWarmUp() {
         activity.ttsWarmUp();
     }

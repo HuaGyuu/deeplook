@@ -133,7 +133,7 @@ const releaseNotes = (sha256, sizeMb) => {
         name: `DeepLook ${TAG}`,
         body,
         draft: false,
-        prerelease: false,
+        prerelease: /preview/i.test(TAG),
         make_latest: 'true',
       }),
     });

@@ -25,6 +25,7 @@ export type UpdateEvent =
     }
 
 type NativeUpdateBridge = {
+  isPreview?: () => boolean
   checkForUpdate?: () => void
   downloadUpdate?: (url: string, version: string) => void
 }
@@ -48,6 +49,15 @@ const subscribe = (listener: (event: UpdateEvent) => void) => {
 }
 
 const bridge = () => (window as NativeUpdateWindow).DeepSeekAndroid
+
+/** 测试版（独立包名）不参与正式版更新检查 */
+export const isPreviewBuild = () => {
+  try {
+    return Boolean(bridge()?.isPreview?.())
+  } catch {
+    return false
+  }
+}
 
 /** 安装原生回调；页面刷新后重新绑定。 */
 const ensureNativeCallback = () => {

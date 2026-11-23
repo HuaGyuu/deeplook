@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
+import { isPreviewBuild } from '../../services/update.js'
 import {
   checkLatestRelease,
   downloadAndInstall,
@@ -79,6 +80,15 @@ export const UpdateChecker = () => {
   }
 
   const busy = state === 'checking' || state === 'downloading'
+  if (isPreviewBuild()) {
+    return (
+      <div className={styles.cell}>
+        <div className={styles.label}>{t('checkUpdate')}</div>
+        <p className={styles.description}>测试版不检查更新，仅用于试用新功能。</p>
+      </div>
+    )
+  }
+
   return (
     <div className={styles.box}>
       <div className={styles.row}>

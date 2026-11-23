@@ -1,3 +1,4 @@
+import { loadAccount } from '../services/account.js'
 import { useEffect } from 'react'
 import { useTranslate } from '../i18n/index.js'
 import { markMounted, noteReady } from '../services/bootDiag.js'
@@ -32,6 +33,9 @@ import { MobileSider, Sider } from '../components/sider/Sider.js'
 import styles from './App.module.css'
 
 export const App = () => {
+  useEffect(() => {
+    loadAccount()
+  }, [])
   const t = useTranslate()
   const isMobile = useIsMobile()
   const locale = useSettings((state) => state.locale)

@@ -6,7 +6,12 @@ import android.content.ActivityNotFoundException;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.app.Dialog;
 import android.content.SharedPreferences;
+import android.view.Gravity;
+import android.widget.Button;
+import android.webkit.WebSettings;
+import android.webkit.JavascriptInterface;
 import android.content.res.Configuration;
 import android.media.AudioAttributes;
 import android.media.AudioFormat;
@@ -24,6 +29,7 @@ import android.text.TextUtils;
 import android.util.TypedValue;
 import android.util.Base64;
 import android.view.Gravity;
+import android.widget.Button;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.ConsoleMessage;
@@ -36,6 +42,7 @@ import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
@@ -1522,6 +1529,138 @@ public class MainActivity extends AppCompatActivity {
                         "window.__deeplookTtsEnded && window.__deeplookTtsEnded()", null);
             }
         });
+    }
+
+
+    // ---------------- DeepSeek 账号登录 ----------------
+
+    private Dialog accountLoginDialog;
+
+    /** 登录页里执行：自动点创建 Key，并读取页面上的 sk- Key 与头像昵称 */
+    private static final String LOGIN_SCANNER_JS =
+            "(function(){if(window.__dsScanStarted)return;window.__dsScanStarted=true;var sent=false;" +
+            "function send(k){if(sent)return;sent=true;try{DSLogin.onKey(k)}catch(e){}}" +
+            "function profile(){try{var img=document.querySelector('img[src^=\"https://\"]');" +
+            "var n=document.querySelector('[class*=\"name\"],[class*=\"nick\"]');" +
+            "var name=n&&n.textContent?n.textContent.trim():'';" +
+            "if(img||name)DSLogin.onProfile(name.slice(0,40),img?img.src:'')}catch(e){}}" +
+            "setInterval(function(){try{var text=document.body?document.body.innerText:'';" +
+            "var m=text.match(/sk-[A-Za-z0-9]{20,}/);if(m){send(m[0]);return;}profile();" +
+            "var dlgs=Array.prototype.slice.call(document.querySelectorAll('[role=\"dialog\"],.ds-modal,.ant-modal,.modal'))" +
+            ".filter(function(d){return d.offsetParent!==null});var dlg=dlgs[0];" +
+            "if(dlg){var input=dlg.querySelector('input');" +
+            "if(input&&!input.value){input.value='DeepLook';input.dispatchEvent(new Event('input',{bubbles:true}))}" +
+            "var ok=Array.prototype.slice.call(dlg.querySelectorAll('button')).filter(function(b){return /确定|创建|确认|完成|Create|OK|Confirm/i.test(b.innerText||'')})[0];" +
+            "if(ok&&!window.__dsOk){window.__dsOk=true;ok.click()}}" +
+            "else if(!window.__dsCreate){var b=Array.prototype.slice.call(document.querySelectorAll('button'))" +
+            ".filter(function(x){return /创建|新建|create/i.test(x.innerText||'')})[0];" +
+            "if(b){window.__dsCreate=true;b.click()}}}catch(e){}},1200);})();";
+
+    private class AccountLoginBridge {
+        @JavascriptInterface
+        public void onKey(String key) {
+            if (key == null || !key.startsWith("sk-")) {
+                return;
+            }
+            SharedPreferences prefs = getSharedPreferences("account", MODE_PRIVATE);
+            prefs.edit().putString("key", key).apply();
+            mainHandler.post(() -> {
+                notifyAccountChanged("key");
+                if (accountLoginDialog != null) {
+                    accountLoginDialog.dismiss();
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void onProfile(String name, String avatar) {
+            SharedPreferences prefs = getSharedPreferences("account", MODE_PRIVATE);
+            SharedPreferences.Editor editor = prefs.edit();
+            if (name != null && !name.isEmpty()) {
+                editor.putString("name", name);
+            }
+            if (avatar != null && !avatar.isEmpty()) {
+                editor.putString("avatar", avatar);
+            }
+            editor.apply();
+            mainHandler.post(() -> notifyAccountChanged("profile"));
+        }
+    }
+
+    /** 打开 DeepSeek 官方登录页（内嵌 WebView，不保存账号密码） */
+    void openDeepSeekLogin() {
+        mainHandler.post(() -> {
+            if (accountLoginDialog != null && accountLoginDialog.isShowing()) {
+                return;
+            }
+            WebView loginView = new WebView(this);
+            WebSettings webSettings = loginView.getSettings();
+            webSettings.setJavaScriptEnabled(true);
+            webSettings.setDomStorageEnabled(true);
+            webSettings.setJavaScriptCanOpenWindowsAutomatically(true);
+            webSettings.setSupportMultipleWindows(false);
+            webSettings.setUserAgentString("Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 "
+                    + "(KHTML, like Gecko) Version/4.0 Chrome/120.0 Mobile Safari/537.36");
+            loginView.setWebViewClient(new WebViewClient() {
+                @Override
+                public void onPageFinished(WebView view, String url) {
+                    view.evaluateJavascript(LOGIN_SCANNER_JS, null);
+                }
+            });
+            loginView.addJavascriptInterface(new AccountLoginBridge(), "DSLogin");
+            loginView.loadUrl("https://platform.deepseek.com/api_keys");
+
+            Dialog dialog = new Dialog(this, android.R.style.Theme_Material_Light_NoActionBar);
+            FrameLayout container = new FrameLayout(this);
+            container.addView(loginView, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            Button close = new Button(this);
+            close.setText("关闭");
+            close.setTextColor(0xFF1D2430);
+            FrameLayout.LayoutParams closeParams = new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            closeParams.gravity = Gravity.TOP | Gravity.END;
+            closeParams.setMargins(0, 24, 16, 0);
+            container.addView(close, closeParams);
+            close.setOnClickListener(v -> dialog.dismiss());
+            dialog.setContentView(container);
+            dialog.setOnDismissListener(d -> accountLoginDialog = null);
+            accountLoginDialog = dialog;
+            dialog.show();
+        });
+    }
+
+    /** 读取已保存的登录态（JSON） */
+    String getAccountJson() {
+        SharedPreferences prefs = getSharedPreferences("account", MODE_PRIVATE);
+        String key = prefs.getString("key", "");
+        String name = prefs.getString("name", "");
+        String avatar = prefs.getString("avatar", "");
+        return "{\"key\":\"" + escapeJson(key) + "\",\"name\":\"" + escapeJson(name)
+                + "\",\"avatar\":\"" + escapeJson(avatar) + "\"}";
+    }
+
+    private static String escapeJson(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    void logoutAccount() {
+        getSharedPreferences("account", MODE_PRIVATE).edit().clear().apply();
+        notifyAccountChanged("logout");
+    }
+
+    private void notifyAccountChanged(String reason) {
+        if (webView == null) {
+            return;
+        }
+        String account = getAccountJson();
+        String js = "if(window.__deeplookAccount){var a=" + account + ";"
+                + "if(a.key){window.__deeplookAccount.onKey(a.key);}"
+                + "window.__deeplookAccount.onProfile(a.name,a.avatar);}";
+        webView.evaluateJavascript(js, null);
     }
 
     /** 从下载链接导入：原生下载到 cache，再分片回传给页面做导入 */

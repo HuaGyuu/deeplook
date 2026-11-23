@@ -39,6 +39,14 @@ android {
             // 便于自行安装体验：release 使用 debug 签名；正式发布请替换为自己的签名
             signingConfig signingConfigs.debug
         }
+        // 测试版：与正式版独立包名，可同时安装；用于试用新功能
+        preview {
+            initWith release
+            applicationIdSuffix '.preview'
+            versionNameSuffix '-preview'
+            resValue 'string', 'app_name', 'DeepLook 测试版'
+            signingConfig signingConfigs.debug
+        }
     }
 
     compileOptions {

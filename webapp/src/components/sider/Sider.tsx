@@ -21,6 +21,7 @@ import { IconButton } from '../base/IconButton.js'
 import { Modal } from '../base/Modal.js'
 import { showToast } from '../base/toastState.js'
 import { openSettings } from '../settings/settingsDialogState.js'
+import { useAccount } from '../../services/account.js'
 import { closeMobileSider, useMobileSider } from './mobileSiderState.js'
 import { LOGO_DATA_URL } from '../../assets/logoData.js'
 import { BalanceCard } from './BalanceCard.js'
@@ -33,6 +34,7 @@ const SESSION_PAGE_SIZE = 60
 /** 展开的侧边栏：名称与收起按钮、开启新对话、按时间分组的会话列表、底部设置；移动端放在抽屉里，收起按钮关闭抽屉 */
 export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
   const t = useTranslate()
+  const account = useAccount()
   const sessions = useChatStore((state) => state.sessions)
   const activeId = useChatStore((state) => state.activeId)
   const [now, setNow] = useState(Date.now)
@@ -289,9 +291,17 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
       <div className={styles.bottom}>
         <button type="button" className={styles.settings} onClick={() => { if (mobile) closeMobileSider(); openSettings('general') }}>
           <span className={styles.settingsIcon}>
-            <IconSettingsOutline16 />
+            {account.avatar ? (
+              <img className={styles.settingsAvatar} src={account.avatar} alt="" />
+            ) : account.loggedIn ? (
+              <span className={styles.settingsInitial}>{Array.from(account.name || 'D')[0]}</span>
+            ) : (
+              <IconSettingsOutline16 />
+            )}
           </span>
-          <span className={styles.settingsLabel}>{t('settings')}</span>
+          <span className={styles.settingsLabel}>
+            {account.loggedIn && account.name ? account.name : t('settings')}
+          </span>
         </button>
       </div>
       {deleting ? (
