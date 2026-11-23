@@ -31,9 +31,11 @@ import { useChatStore } from '../../services/chat/store.js'
 import { importHistoryFromUrl, validateHistoryUrl } from '../../services/chat/historyImportUrl.js'
 import {
   addPersona,
+  createUserPersonaId,
   deletePersona,
   updatePersona,
   usePersonas,
+  type UserPersona,
 } from '../../services/personas.js'
 import { setPersonaEditing, usePersonaEditor } from './personaEditorState.js'
 import { regionCodes, getRegionName, provinces } from '../../services/location.js'
@@ -386,11 +388,13 @@ const PersonaSettings = () => {
   const personas = usePersonas((state) => state.personas)
   const selectedId = usePersonas((state) => state.selectedId)
   const editingId = usePersonaEditor((state) => state.editingId)
-  const [draft, setDraft] = useState<{ name: string; content: string; cover: string | null }>({
-    name: '',
-    content: '',
-    cover: null,
-  })
+  const [draft, setDraft] = useState<{
+    name: string
+    content: string
+    cover: string | null
+    userPersonas: UserPersona[]
+    defaultUserPersonaId: string | null
+  }>({ name: '', content: '', cover: null, userPersonas: [], defaultUserPersonaId: null })
   const [busy, setBusy] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   /** 多选删除 */
@@ -408,12 +412,18 @@ const PersonaSettings = () => {
     }
     const persona = personas.find((item) => item.id === editingId)
     if (persona) {
-      setDraft({ name: persona.name, content: persona.content, cover: persona.cover })
+      setDraft({
+        name: persona.name,
+        content: persona.content,
+        cover: persona.cover,
+        userPersonas: persona.userPersonas,
+        defaultUserPersonaId: persona.defaultUserPersonaId,
+      })
     }
   }, [editingId, personas])
 
   const openNew = () => {
-    setDraft({ name: '', content: '', cover: null })
+    setDraft({ name: '', content: '', cover: null, userPersonas: [], defaultUserPersonaId: null })
     setPersonaEditing('new')
   }
   const openEdit = (id: string) => {
@@ -421,7 +431,13 @@ const PersonaSettings = () => {
     if (!persona) {
       return
     }
-    setDraft({ name: persona.name, content: persona.content, cover: persona.cover })
+    setDraft({
+      name: persona.name,
+      content: persona.content,
+      cover: persona.cover,
+      userPersonas: persona.userPersonas,
+      defaultUserPersonaId: persona.defaultUserPersonaId,
+    })
     setPersonaEditing(id)
   }
   const save = () => {
@@ -429,7 +445,7 @@ const PersonaSettings = () => {
       return
     }
     if (editingId === 'new') {
-      addPersona(draft.name, draft.content, draft.cover)
+      addPersona(draft.name, draft.content, draft.cover, draft.userPersonas, draft.defaultUserPersonaId)
     } else {
       updatePersona(editingId, draft)
     }
@@ -552,6 +568,105 @@ const PersonaSettings = () => {
               event.target.value = ''
             }}
           />
+        </div>
+        <div className={styles.userPersonaSection}>
+          <div className={styles.userPersonaHeader}>
+            <span className={styles.fieldLabel}>{t('personaUserSection')}</span>
+            <Button
+              variant="outlined"
+              size="s"
+              onClick={() =>
+                setDraft((current) => {
+                  const user: UserPersona = {
+                    id: createUserPersonaId(),
+                    name: '',
+                    content: '',
+                  }
+                  return {
+                    ...current,
+                    userPersonas: [...current.userPersonas, user],
+                    defaultUserPersonaId: current.defaultUserPersonaId ?? user.id,
+                  }
+                })
+              }
+            >
+              {t('personaUserAdd')}
+            </Button>
+          </div>
+          <p className={styles.subpageHint}>{t('personaUserHint')}</p>
+          {draft.userPersonas.length === 0 ? (
+            <p className={styles.userPersonaEmpty}>{t('personaUserEmpty')}</p>
+          ) : (
+            <div className={styles.userPersonaList}>
+              {draft.userPersonas.map((user, index) => (
+                <div key={user.id} className={styles.userPersonaRow}>
+                  <input
+                    className={styles.personaInput}
+                    value={user.name}
+                    placeholder={t('personaUserNamePlaceholder')}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        userPersonas: current.userPersonas.map((item) =>
+                          item.id === user.id ? { ...item, name: event.target.value } : item
+                        ),
+                      }))
+                    }
+                  />
+                  <textarea
+                    className={styles.textarea}
+                    rows={3}
+                    value={user.content}
+                    placeholder={t('personaUserContentPlaceholder')}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        userPersonas: current.userPersonas.map((item) =>
+                          item.id === user.id ? { ...item, content: event.target.value } : item
+                        ),
+                      }))
+                    }
+                  />
+                  <div className={styles.userPersonaRowActions}>
+                    <button
+                      type="button"
+                      className={clsx(
+                        styles.userPersonaDefault,
+                        draft.defaultUserPersonaId === user.id && styles.userPersonaDefaultActive
+                      )}
+                      onClick={() =>
+                        setDraft((current) => ({ ...current, defaultUserPersonaId: user.id }))
+                      }
+                    >
+                      {draft.defaultUserPersonaId === user.id
+                        ? t('personaUserDefaultMark')
+                        : t('personaUserSetDefault')}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.userPersonaDelete}
+                      onClick={() =>
+                        setDraft((current) => {
+                          const rest = current.userPersonas.filter((item) => item.id !== user.id)
+                          return {
+                            ...current,
+                            userPersonas: rest,
+                            defaultUserPersonaId:
+                              current.defaultUserPersonaId === user.id
+                                ? (rest[0]?.id ?? null)
+                                : current.defaultUserPersonaId,
+                          }
+                        })
+                      }
+                    >
+                      {t('personaUserDelete')}
+                    </button>
+                    <span className={styles.userPersonaIndex}>#{index + 1}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <div className={styles.subpageActions}>
           {editingId !== 'new' ? (

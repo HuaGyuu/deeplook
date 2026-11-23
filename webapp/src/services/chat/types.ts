@@ -119,6 +119,9 @@ export type Session = {
   /** 建会话时选中的人设快照（之后改人设不影响已有对话）。 */
   personaName?: string | null
   personaContent?: string | null
+  /** 建会话时选中的用户人设快照。 */
+  userPersonaName?: string | null
+  userPersonaContent?: string | null
 }
 
 /** 会话列表元数据；消息只在打开会话时加载。 */

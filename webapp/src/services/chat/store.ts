@@ -5,7 +5,7 @@ import type { CreateMessageRequest } from '../api/types.js'
 import { extractFileIds, getFileErrorCode, isRetryableApiError } from '../api/errors.js'
 import { cancelUpload, describeUploadError, uploadAttachment, useUploads } from '../attachments.js'
 import { useSettings } from '../settings.js'
-import { getSelectedPersona, selectPersona } from '../personas.js'
+import { getSelectedPersona, getSelectedUserPersona, selectPersona } from '../personas.js'
 import { getConnection, PROTOCOL_ANTHROPIC } from '../providers.js'
 import { appendBranch, getVisibleMessages, normalizeSession, selectVersion } from './branches.js'
 import * as db from './db.js'
@@ -41,13 +41,20 @@ import {
 const buildSystemPrompt = (
   summary?: string,
   personaName?: string | null,
-  personaContent?: string | null
+  personaContent?: string | null,
+  userPersonaName?: string | null,
+  userPersonaContent?: string | null
 ): string => {
   const parts: string[] = []
   const content = personaContent?.trim() ?? ''
   if (content) {
     const label = personaName?.trim() ? `「${personaName.trim()}」` : ''
     parts.push(`请始终遵循以下人设${label}设定：\n${content}`)
+  }
+  const userContent = userPersonaContent?.trim() ?? ''
+  if (userContent) {
+    const label = userPersonaName?.trim() ? `「${userPersonaName.trim()}」` : ''
+    parts.push(`以下是关于对话中「用户」的设定${label}，请始终把它当作对方本人：\n${userContent}`)
   }
   if (summary?.trim()) {
     parts.push(`以下是此前对话的压缩摘要，请把它视为已经发生的上下文并继续对话：\n${summary.trim()}`)
@@ -508,6 +515,7 @@ export const newChat = () => {
 export const createCompressedSession = (title: string, summary: string): string => {
   const now = Date.now()
   const persona = getSelectedPersona()
+  const userPersona = persona ? getSelectedUserPersona() : null
   const session: Session = {
     id: createId(),
     title: title.trim() || '压缩对话',
@@ -518,6 +526,8 @@ export const createCompressedSession = (title: string, summary: string): string 
     summary,
     personaName: persona?.name ?? null,
     personaContent: persona?.content ?? null,
+    userPersonaName: userPersona?.name ?? null,
+    userPersonaContent: userPersona?.content ?? null,
   }
   touchSession(session.id)
   set((state) => ({
@@ -643,6 +653,7 @@ export const sendMessage = (targetSessionId: string | null) => {
   const { text, files } = prepared
   const now = Date.now()
   const persona = getSelectedPersona()
+  const userPersona = persona ? getSelectedUserPersona() : null
   let sessionId = targetSessionId
   if (
     sessionId !== null &&
@@ -664,6 +675,8 @@ export const sendMessage = (targetSessionId: string | null) => {
       rootMessageId: null,
       personaName: persona?.name ?? null,
       personaContent: persona?.content ?? null,
+      userPersonaName: userPersona?.name ?? null,
+      userPersonaContent: userPersona?.content ?? null,
     }
     sessionId = session.id
     touchSession(session.id)
@@ -1103,7 +1116,9 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
         const system = buildSystemPrompt(
           activeSession?.summary,
           activeSession?.personaName,
-          activeSession?.personaContent
+          activeSession?.personaContent,
+          activeSession?.userPersonaName,
+          activeSession?.userPersonaContent
         )
         const systemField = system ? { system } : {}
         const events = streamMessage(

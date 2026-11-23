@@ -35,8 +35,6 @@ type Settings = {
   thinking: boolean
   search: boolean
   siderCollapsed: boolean
-  /** 用户人设：注入到系统提示，说明“用户是谁” */
-  userPersona: string
   /** AI 人设：注入到系统提示，说明“AI 应该怎么表现” */
   aiPersona: string
   /** 聊天背景图（data URL）；空串表示使用默认背景 */
@@ -64,7 +62,6 @@ const KEYS = {
   thinking: 'chat-demo:thinking',
   search: 'chat-demo:search',
   siderCollapsed: 'chat-demo:sider-collapsed',
-  userPersona: 'chat-demo:user-persona',
   aiPersona: 'chat-demo:ai-persona',
   chatBackground: 'chat-demo:chat-background',
   chatBackgroundScrim: 'chat-demo:chat-bg-scrim',
@@ -164,7 +161,6 @@ export const useSettings = create<Settings>(() => ({
   thinking: read(KEYS.thinking) === 'true',
   search: read(KEYS.search) === 'true',
   siderCollapsed: read(KEYS.siderCollapsed) === 'true',
-  userPersona: read(KEYS.userPersona) ?? '',
   aiPersona: read(KEYS.aiPersona) ?? '',
   chatBackground: read(KEYS.chatBackground) ?? '',
   chatBackgroundScrim: readNumber(KEYS.chatBackgroundScrim, 72, 0, 100),
@@ -229,10 +225,6 @@ export const setModelConnection = (value: {
 }
 
 /** 人设与聊天背景：人设每次请求都会注入系统提示，背景图存 data URL */
-export const setUserPersona = (userPersona: string) => {
-  write(KEYS.userPersona, userPersona)
-  useSettings.setState({ userPersona })
-}
 
 export const setAiPersona = (aiPersona: string) => {
   write(KEYS.aiPersona, aiPersona)
