@@ -23,6 +23,7 @@ import { Welcome } from '../components/session/Welcome.js'
 import { closeSettings, ensureApiKey, handleSettingsBack, useSettingsDialog } from '../components/settings/settingsDialogState.js'
 import { SettingsDialog } from '../components/settings/SettingsDialog.js'
 import { Toast } from '../components/base/Toast.js'
+import { FirstRunNotice } from '../components/privacy/FirstRunNotice.js'
 import { showToast } from '../components/base/toastState.js'
 import { onUploadNotice } from '../services/attachments.js'
 import { Button } from '../components/base/Button.js'
@@ -211,6 +212,7 @@ export const App = () => {
       <VoiceCall />
       <GlobalSearch />
       <SettingsDialog />
+      <FirstRunNotice />
       <Toast />
     </>
   )

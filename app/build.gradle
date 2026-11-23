@@ -13,8 +13,8 @@ android {
         // Android 8.0：WebViewAssetLoader、现代 WebView 与深色模式等能力都可用
         minSdk 26
         targetSdk 36
-        versionCode 63
-        versionName '1.11.18'
+        versionCode 64
+        versionName '1.12.0'
         // 只打包中文与英文资源
         resourceConfigurations += ['zh', 'en']
     }
