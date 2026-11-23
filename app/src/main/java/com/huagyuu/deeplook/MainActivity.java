@@ -1539,28 +1539,26 @@ public class MainActivity extends AppCompatActivity {
     /** 上报给平台的客户端版本（与 DSH 客户端保持一致） */
     private static final String PLATFORM_CLIENT_VERSION = "0.2.1-rc.5";
     private volatile boolean oauthRunning;
+    private volatile java.net.ServerSocket oauthServer;
+    private volatile boolean oauthAbort;
+    private final java.util.concurrent.atomic.AtomicInteger oauthSeq =
+            new java.util.concurrent.atomic.AtomicInteger();
 
+    /** 登录：auth_init 拿授权页 → 应用内 WebView 打开 → 拦截回环回调换取令牌 */
     void startDeepSeekOAuth() {
         oauthLog("start running=" + oauthRunning);
         if (oauthRunning) {
-            notifyAccountStatus("登录进行中，请在浏览器完成授权");
+            notifyAccountStatus("登录进行中，请先完成或关闭当前登录页");
             return;
         }
         oauthRunning = true;
-        oauthLog("oauth start");
         notifyAccountStatus("正在请求授权…");
         new Thread(() -> {
-            java.net.ServerSocket server = null;
             try {
-                server = new java.net.ServerSocket(0, 1, java.net.InetAddress.getByName("127.0.0.1"));
-                server.setSoTimeout(300000);
-                server.setSoTimeout(900000);
-                String redirectUri = "http://127.0.0.1:" + server.getLocalPort() + "/oauth/callback";
-                oauthLog("redirect=" + redirectUri);
+                String redirectUri = "http://127.0.0.1:53682/oauth/callback";
                 String verifier = randomB64Url(32);
                 String challenge = sha256B64Url(verifier);
                 String state = randomB64Url(32);
-
                 JSONObject initBody = new JSONObject()
                         .put("code_challenge", challenge)
                         .put("code_challenge_method", "S256")
@@ -1573,75 +1571,15 @@ public class MainActivity extends AppCompatActivity {
                 oauthLog("auth_init ok");
                 String authorizeUrl = initBiz.getString("authorize_url");
                 oauthLog("authorize url host=" + android.net.Uri.parse(authorizeUrl).getHost());
-                try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        startForegroundService(new Intent(this, OAuthWaitService.class));
-                    } else {
-                        startService(new Intent(this, OAuthWaitService.class));
-                    }
-                    oauthLog("fgs requested");
-                } catch (Exception fgsError) {
-                    oauthLog("fgs failed " + fgsError);
-                }
-                openBrowser(authorizeUrl);
-                notifyAccountStatus("等待浏览器授权…");
-
-                String code = null;
-                long deadline = System.currentTimeMillis() + 900000;
-                while (code == null && System.currentTimeMillis() < deadline) {
-                    java.net.Socket socket = server.accept();
-                    try {
-                        java.io.BufferedReader reader = new java.io.BufferedReader(
-                                new java.io.InputStreamReader(socket.getInputStream(), "UTF-8"));
-                        String requestLine = reader.readLine();
-                        String receivedState = "";
-                        String receivedCode = null;
-                        if (requestLine != null && requestLine.startsWith("GET ")) {
-                            String target = requestLine.split(" ")[1];
-                            java.net.URI uri = java.net.URI.create("http://127.0.0.1" + target);
-                            String query = uri.getRawQuery();
-                            if (query != null) {
-                                for (String pair : query.split("&")) {
-                                    int eq = pair.indexOf('=');
-                                    if (eq < 0) {
-                                        continue;
-                                    }
-                                    String key = java.net.URLDecoder.decode(pair.substring(0, eq), "UTF-8");
-                                    String value = java.net.URLDecoder.decode(pair.substring(eq + 1), "UTF-8");
-                                    if ("code".equals(key)) {
-                                        receivedCode = value;
-                                    } else if ("state".equals(key)) {
-                                        receivedState = value;
-                                    }
-                                }
-                            }
-                        }
-                        boolean matched = receivedCode != null && state.equals(receivedState);
-                        String html = matched
-                                ? "<html><body style='font-family:sans-serif;padding:40px;text-align:center'>"
-                                + "<h2>授权完成</h2><p>请回到 DeepLook 测试版。</p></body></html>"
-                                : "<html><body style='font-family:sans-serif;padding:40px'>Not found</body></html>";
-                        String response = "HTTP/1.1 " + (matched ? "200 OK" : "404 Not Found")
-                                + "\r\nContent-Type: text/html; charset=utf-8\r\n"
-                                + "Content-Length: " + html.getBytes(java.nio.charset.StandardCharsets.UTF_8).length
-                                + "\r\nConnection: close\r\n\r\n" + html;
-                        socket.getOutputStream().write(response.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                        socket.getOutputStream().flush();
-                        if (matched) {
-                            code = receivedCode;
-                            oauthLog("callback received");
-                        }
-                    } catch (Exception connectionError) {
-                        oauthLog("callback conn error " + connectionError);
-                    } finally {
-                        try {
-                            socket.close();
-                        } catch (Exception ignored) {
-                        }
-                    }
-                }
+                final String[] holder = new String[1];
+                final java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+                mainHandler.post(() -> showOAuthWebView(authorizeUrl, redirectUri, state, holder, latch));
+                latch.await(15, java.util.concurrent.TimeUnit.MINUTES);
+                String code = holder[0];
                 if (code == null) {
-                    throw new IllegalStateException("授权超时");
+                    oauthLog("login cancelled or timeout");
+                    notifyAccountStatus("");
+                    return;
                 }
                 notifyAccountStatus("正在换取令牌…");
                 JSONObject exchangeBody = new JSONObject()
@@ -1654,19 +1592,15 @@ public class MainActivity extends AppCompatActivity {
                 JSONObject exchangeBiz = postPlatform("/auth-api/v0/dsh/auth_exchange", exchangeBody, null);
                 String token = exchangeBiz.getString("token");
                 oauthLog("auth_exchange ok len=" + token.length());
-
                 SharedPreferences prefs = getSharedPreferences("account", MODE_PRIVATE);
-                prefs.edit().putString("token", token)
-                        .putString("issuer", PLATFORM_ORIGIN).apply();
-
-                // 读取账号资料（昵称/头像）
+                prefs.edit().putString("token", token).putString("issuer", PLATFORM_ORIGIN).apply();
                 try {
                     JSONObject current = getPlatform("/auth-api/v0/users/current", token);
                     JSONObject identity = current.optJSONObject("id_profile");
                     if (identity != null) {
                         String name = identity.isNull("name") ? "" : identity.optString("name", "");
-                        String picture = identity.optString("picture", "");
-                        prefs.edit().putString("name", name).putString("avatar", picture).apply();
+                        prefs.edit().putString("name", name)
+                                .putString("avatar", identity.optString("picture", "")).apply();
                     }
                     String contact = current.optString("mobile", "");
                     if (contact.isEmpty()) {
@@ -1674,9 +1608,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                     prefs.edit().putString("contact", contact).apply();
                 } catch (Exception ignored) {
-                    // 资料读取失败不影响登录
                 }
-
                 notifyAccountStatus("登录成功");
                 notifyAccountChanged("login");
             } catch (Exception error) {
@@ -1684,18 +1616,131 @@ public class MainActivity extends AppCompatActivity {
                 notifyAccountStatus("登录失败：" + error.getMessage());
             } finally {
                 oauthRunning = false;
-                try {
-                    stopService(new Intent(this, OAuthWaitService.class));
-                } catch (Exception ignored) {
-                }
-                if (server != null) {
-                    try {
-                        server.close();
-                    } catch (Exception ignored) {
+            }
+        }, "ds-oauth").start();
+    }
+
+    private volatile Dialog oauthDialog;
+
+    /** 应用内授权页：拦截 http://127.0.0.1:.../oauth/callback 直接把 code 交给调用方 */
+    private void showOAuthWebView(String authorizeUrl, String redirectUri, String state,
+                                  String[] holder, java.util.concurrent.CountDownLatch latch) {
+        if (oauthDialog != null && oauthDialog.isShowing()) {
+            oauthDialog.dismiss();
+        }
+        WebView view = new WebView(this);
+        view.getSettings().setJavaScriptEnabled(true);
+        view.getSettings().setDomStorageEnabled(true);
+        view.getSettings().setJavaScriptCanOpenWindowsAutomatically(true);
+        view.getSettings().setSupportMultipleWindows(false);
+        view.getSettings().setUserAgentString("Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 "
+                + "(KHTML, like Gecko) Version/4.0 Chrome/120.0 Mobile Safari/537.36");
+
+        Dialog dialog = new Dialog(this, android.R.style.Theme_Material_Light_NoActionBar);
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setBackgroundColor(0xFFFFFFFF);
+        int statusBarHeight = 0;
+        int resId = getResources().getIdentifier("status_bar_height", "dimen", "android");
+        if (resId > 0) {
+            statusBarHeight = getResources().getDimensionPixelSize(resId);
+        }
+        layout.setPadding(0, statusBarHeight, 0, 0);
+
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setPadding(dp(16), dp(10), dp(8), dp(10));
+        TextView statusView = new TextView(this);
+        statusView.setText("请登录并授权 DeepSeek 账号");
+        statusView.setTextColor(0xFF5B6B85);
+        statusView.setTextSize(13);
+        bar.addView(statusView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        Button close = new Button(this);
+        close.setText("取消");
+        bar.addView(close, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        layout.addView(bar, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        layout.addView(view, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+
+        final boolean[] finished = {false};
+        final Runnable finishOnce = () -> {
+            if (!finished[0]) {
+                finished[0] = true;
+                latch.countDown();
+            }
+        };
+        close.setOnClickListener(v -> {
+            oauthLog("user cancelled");
+            finishOnce.run();
+            dialog.dismiss();
+        });
+        view.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest request) {
+                return handleOAuthUrl(request.getUrl().toString(), redirectUri, state, holder, statusView, dialog, finishOnce);
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView v, String url) {
+                return handleOAuthUrl(url, redirectUri, state, holder, statusView, dialog, finishOnce);
+            }
+
+            @Override
+            public void onPageFinished(WebView v, String url) {
+                statusView.setText("请在页面中登录并点击授权");
+            }
+        });
+        view.loadUrl(authorizeUrl);
+        dialog.setContentView(layout);
+        dialog.setOnDismissListener(d -> {
+            oauthDialog = null;
+            finishOnce.run();
+        });
+        oauthDialog = dialog;
+        dialog.show();
+    }
+
+    private boolean handleOAuthUrl(String url, String redirectUri, String state, String[] holder,
+                                   TextView statusView, Dialog dialog, Runnable finishOnce) {
+        if (url == null || !url.startsWith(redirectUri)) {
+            return false;
+        }
+        try {
+            java.net.URI uri = java.net.URI.create(url);
+            String query = uri.getRawQuery();
+            String code = null;
+            String receivedState = "";
+            if (query != null) {
+                for (String pair : query.split("&")) {
+                    int eq = pair.indexOf('=');
+                    if (eq < 0) {
+                        continue;
+                    }
+                    String key = java.net.URLDecoder.decode(pair.substring(0, eq), "UTF-8");
+                    String value = java.net.URLDecoder.decode(pair.substring(eq + 1), "UTF-8");
+                    if ("code".equals(key)) {
+                        code = value;
+                    } else if ("state".equals(key)) {
+                        receivedState = value;
                     }
                 }
             }
-        }, "ds-oauth").start();
+            if (code != null && state.equals(receivedState)) {
+                holder[0] = code;
+                oauthLog("callback received");
+                statusView.setText("授权完成");
+            } else {
+                oauthLog("callback state mismatch");
+                statusView.setText("授权校验失败，请重试");
+            }
+        } catch (Exception error) {
+            oauthLog("callback parse failed " + error);
+        }
+        finishOnce.run();
+        dialog.dismiss();
+        return true;
     }
 
     private String randomB64Url(int bytes) {
@@ -1718,6 +1763,10 @@ public class MainActivity extends AppCompatActivity {
             prefs.edit().putString("device_id", id).apply();
         }
         return id;
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
     }
 
     private void openBrowser(String url) {
