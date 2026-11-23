@@ -227,7 +227,9 @@ const AccountSettings = () => {
             </span>
             <span className={styles.accountInfo}>
               <span className={styles.accountName}>{account.name || t('accountDeepSeekUser')}</span>
-              <span className={styles.accountStatus}>{t('accountLoggedIn')}</span>
+              <span className={styles.accountStatus}>
+                {account.contact ? `${t('accountLoggedIn')} · ${account.contact}` : t('accountLoggedIn')}
+              </span>
             </span>
           </div>
           <p className={styles.subpageHint}>{t('accountKeyInUse')}</p>
@@ -241,6 +243,7 @@ const AccountSettings = () => {
       ) : (
         <>
           <p className={styles.subpageHint}>{t('accountLoginHint')}</p>
+          {account.status ? <p className={styles.subpageHint}>{account.status}</p> : null}
           <div className={styles.centerAction}>
             <Button variant="primary" size="m" onClick={startLogin}>
               {t('loginWithDeepSeek')}

@@ -1,3 +1,4 @@
+import { useAccount } from '../account.js'
 import { translate, type TranslationMessage } from '../../i18n/index.js'
 import { getConnection, PROTOCOL_OPENAI } from '../providers.js'
 import { streamOpenAiMessage } from './openai.js'
@@ -109,12 +110,15 @@ export const request = async (url: string, init: RequestInit): Promise<Response>
   return response
 }
 
-const anthropicHeaders = (apiKey: string, beta: boolean): Record<string, string> => ({
-  // DeepSeek 兼容接口的鉴权方式，也可使用 Authorization: Bearer。
-  'x-api-key': apiKey,
-  // Files API 和通过 file_id 引用图片时必传；纯文本聊天无需携带。
-  ...(beta ? { 'anthropic-beta': FILES_BETA } : {}),
-})
+const anthropicHeaders = (apiKey: string, beta: boolean): Record<string, string> => {
+  const accountToken = useAccount.getState().token
+  return {
+    // 账号登录：用 DSH 账号令牌；否则仍用 API Key
+    ...(accountToken ? { 'x-dsh-auth-token': accountToken } : { 'x-api-key': apiKey }),
+    ...(beta ? { 'anthropic-beta': FILES_BETA } : {}),
+  }
+}
+
 
 /**
  * DeepSeek / Anthropic 兼容协议的模型列表地址。

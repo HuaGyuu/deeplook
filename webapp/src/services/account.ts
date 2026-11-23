@@ -1,28 +1,35 @@
 import { create } from 'zustand'
-import { setApiKey, useSettings } from './settings.js'
 
-/** DeepSeek 账号登录状态（登录后自动使用账号的 API Key） */
+/** DeepSeek 账号登录状态（DSH OAuth，令牌方式，不使用 API Key） */
 type AccountState = {
   loggedIn: boolean
   name: string
   avatar: string
-  /** 登录态下从官方账号拿到的 key */
-  key: string | null
+  contact: string
+  token: string | null
+  /** 登录过程中的状态文案 */
+  status: string
+  balance: number | null
+  bonus: number | null
+  currency: string
 }
 
 export const useAccount = create<AccountState>(() => ({
   loggedIn: false,
   name: '',
   avatar: '',
-  key: null,
+  contact: '',
+  token: null,
+  status: '',
+  balance: null,
+  bonus: null,
+  currency: 'CNY',
 }))
-
-/** 登录前用户手动填的 key，退出登录时恢复 */
-const MANUAL_KEY = 'chat-demo:manual-api-key'
 
 type NativeAccountBridge = {
   getAccount?: () => string
-  openDeepSeekLogin?: () => void
+  startDeepSeekLogin?: () => void
+  refreshAccountSummary?: () => void
   logoutAccount?: () => void
 }
 
@@ -31,76 +38,85 @@ const native = (): NativeAccountBridge | undefined =>
     ? undefined
     : (window as Window & { DeepSeekAndroid?: NativeAccountBridge }).DeepSeekAndroid
 
-/** 启动时读取原生保存的登录态；登录的 key 优先于手动填的 key */
+const applyAccount = (saved: { token?: string; name?: string; avatar?: string; contact?: string }) => {
+  if (!saved.token) {
+    return
+  }
+  useAccount.setState({
+    loggedIn: true,
+    token: saved.token,
+    name: saved.name || '',
+    avatar: saved.avatar || '',
+    contact: saved.contact || '',
+    status: '',
+  })
+  native()?.refreshAccountSummary?.()
+}
+
+/** 启动时读取原生保存的登录态 */
 export const loadAccount = () => {
   const json = native()?.getAccount?.()
   if (!json) {
     return
   }
   try {
-    const saved = JSON.parse(json) as { key?: string; name?: string; avatar?: string }
-    if (!saved.key) {
-      return
-    }
-    const current = useSettings.getState().apiKey
-    if (current && current !== saved.key && !localStorage.getItem(MANUAL_KEY)) {
-      localStorage.setItem(MANUAL_KEY, current)
-    }
-    useAccount.setState({
-      loggedIn: true,
-      name: saved.name || 'DeepSeek 用户',
-      avatar: saved.avatar || '',
-      key: saved.key,
-    })
-    setApiKey(saved.key)
+    applyAccount(JSON.parse(json))
   } catch {
     // 解析失败忽略
   }
 }
 
-/** 打开官方登录页（原生内嵌 WebView） */
+/** 打开系统浏览器完成 DSH 账号授权 */
 export const startLogin = () => {
-  const current = useSettings.getState().apiKey
-  if (current && !localStorage.getItem(MANUAL_KEY) && !useAccount.getState().loggedIn) {
-    localStorage.setItem(MANUAL_KEY, current)
-  }
-  native()?.openDeepSeekLogin?.()
+  useAccount.setState({ status: '正在打开浏览器…' })
+  native()?.startDeepSeekLogin?.()
 }
 
-/** 退出登录：恢复手动 key */
+/** 退出登录（原生会顺带注销远端会话） */
 export const logoutAccount = () => {
   native()?.logoutAccount?.()
-  const manual = localStorage.getItem(MANUAL_KEY)
-  setApiKey(manual || null)
-  useAccount.setState({ loggedIn: false, name: '', avatar: '', key: null })
+  useAccount.setState({
+    loggedIn: false,
+    token: null,
+    name: '',
+    avatar: '',
+    contact: '',
+    status: '',
+    balance: null,
+    bonus: null,
+  })
 }
 
-/** 原生登录 WebView 回调到页面 */
+/** 原生回调 */
 if (typeof window !== 'undefined') {
   ;(
     window as Window & {
       __deeplookAccount?: {
-        onKey: (key: string) => void
-        onProfile: (name: string, avatar: string) => void
+        onAccount: (saved: { token?: string; name?: string; avatar?: string; contact?: string }) => void
+        onStatus: (text: string) => void
+        onBalance: (summary: { balance?: number; bonus?: number; currency?: string }) => void
         onLogout: () => void
       }
     }
   ).__deeplookAccount = {
-    onKey: (key: string) => {
-      if (!key) {
-        return
-      }
-      useAccount.setState({ loggedIn: true, key })
-      setApiKey(key)
-    },
-    onProfile: (name: string, avatar: string) => {
-      useAccount.setState((state) => ({
-        name: name || state.name,
-        avatar: avatar || state.avatar,
-      }))
-    },
-    onLogout: () => {
-      useAccount.setState({ loggedIn: false, name: '', avatar: '', key: null })
-    },
+    onAccount: (saved) => applyAccount(saved || {}),
+    onStatus: (text) => useAccount.setState({ status: text || '' }),
+    onBalance: (summary) =>
+      useAccount.setState({
+        balance: typeof summary?.balance === 'number' ? summary.balance : null,
+        bonus: typeof summary?.bonus === 'number' ? summary.bonus : null,
+        currency: summary?.currency || 'CNY',
+      }),
+    onLogout: () =>
+      useAccount.setState({
+        loggedIn: false,
+        token: null,
+        name: '',
+        avatar: '',
+        contact: '',
+        status: '',
+        balance: null,
+        bonus: null,
+      }),
   }
 }

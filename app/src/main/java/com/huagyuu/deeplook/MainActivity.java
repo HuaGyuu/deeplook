@@ -1532,197 +1532,369 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    // ---------------- DeepSeek 账号登录 ----------------
+    // ---------------- DeepSeek 账号登录（DSH OAuth 协议） ----------------
 
-    private Dialog accountLoginDialog;
+    /** DSH 账号登录：本地回环 + PKCE 授权码换取账号令牌（不使用 API Key） */
+    private static final String PLATFORM_ORIGIN = "https://platform.deepseek.com";
+    /** 上报给平台的客户端版本（与 DSH 客户端保持一致） */
+    private static final String PLATFORM_CLIENT_VERSION = "0.2.1-rc.5";
+    private volatile boolean oauthRunning;
 
-    /** 登录页里执行：登录后跳到 API Keys 页，自动创建/读取 sk- Key */
-    private static final String LOGIN_SCANNER_JS =
-            "(function(){if(window.__dsScanStarted)return;window.__dsScanStarted=true;var sent=false,ticks=0;" +
-            "function status(s){try{DSLogin.onStatus(s)}catch(e){}}" +
-            "function send(k){if(sent)return;sent=true;status('已获取 API Key');try{DSLogin.onKey(k)}catch(e){}}" +
-            "function setVal(el,v){try{var d=Object.getOwnPropertyDescriptor(el.constructor.prototype,'value');" +
-            "d.set.call(el,v);}catch(e){el.value=v;}el.dispatchEvent(new Event('input',{bubbles:true}));" +
-            "el.dispatchEvent(new Event('change',{bubbles:true}));}" +
-            "function profile(){try{var img=document.querySelector('img[src^=\"https://\"]');" +
-            "var n=document.querySelector('[class*=\"name\"],[class*=\"nick\"],[class*=\"user\"]');" +
-            "var name=n&&n.textContent?n.textContent.trim():'';" +
-            "if(!name&&!window.__dsNameTried&&img){window.__dsNameTried=true;try{img.click();" +
-            "setTimeout(function(){try{var menus=Array.prototype.slice.call(document.querySelectorAll('[role=\"menu\"],[class*=\"menu\"],[class*=\"dropdown\"],[class*=\"popover\"]')).filter(function(x){return x.offsetParent!==null});" +
-            "var txt=menus[0]?(menus[0].innerText||''):'';var first=(txt.split('\\n')[0]||'').trim();" +
-            "if(first&&first.length<=30)DSLogin.onProfile(first,img?img.src:'');" +
-            "document.body.click();}catch(e){}},700);}catch(e){}}" +
-            "if(img||name)DSLogin.onProfile((name||'').slice(0,30),img?img.src:'')}catch(e){}}" +
-            "status('等待登录…');" +
-            "setInterval(function(){try{ticks++;" +
-            "var text=document.body?document.body.innerText:'';" +
-            "var m=text.match(/sk-[A-Za-z0-9]{20,}/);if(m){send(m[0]);return;}" +
-            "profile();" +
-            "var p=location.pathname||'';var onLogin=/sign_in|login/i.test(p);" +
-            "if(!onLogin)status('已登录，正在准备 API Key…');" +
-            "if(!onLogin&&!/api_keys/.test(p)&&ticks>2&&!window.__dsToKeys){window.__dsToKeys=true;" +
-            "location.href='https://platform.deepseek.com/api_keys';return;}" +
-            "var els=Array.prototype.slice.call(document.querySelectorAll('button,[role=\"button\"],a,div[class*=\"btn\"],div[class*=\"button\"]'));" +
-            "var dlgs=Array.prototype.slice.call(document.querySelectorAll('[role=\"dialog\"],[class*=\"modal\"],[class*=\"dialog\"]'))" +
-            ".filter(function(d){return d.offsetParent!==null});var dlg=dlgs[0];" +
-            "if(dlg){status('正在创建 API Key…');var input=dlg.querySelector('input');" +
-            "if(input&&input.value!=='DeepLook'){setVal(input,'DeepLook');}" +
-            "var scope=Array.prototype.slice.call(dlg.querySelectorAll('button,[role=\"button\"],a,div[class*=\"btn\"],div[class*=\"button\"]'));" +
-            "var ok=scope.filter(function(b){var t=(b.innerText||'').trim();" +
-            "return /^(创建|确定|确认|完成|创建 API key|Create|OK|Confirm)$/i.test(t)||(/创建|确定|确认|Create|Confirm/i.test(t)&&!/取消|Cancel/i.test(t))})[0];" +
-            "if(ok&&!window.__dsOk){window.__dsOk=true;status('点击创建…');ok.click()}}" +
-            "else if(!window.__dsCreate&&/api_keys/.test(p)){var b=els.filter(function(x){return /创建|新建|create/i.test(x.innerText||'')})[0];" +
-            "if(b){window.__dsCreate=true;status('已找到创建按钮，正在点击…');b.click()}}" +
-            "}catch(e){}},1200);})();";
+    void startDeepSeekOAuth() {
+        ttsLog("startDeepSeekOAuth called running=" + oauthRunning);
+        if (oauthRunning) {
+            return;
+        }
+        oauthRunning = true;
+        ttsLog("oauth start");
+        notifyAccountStatus("正在请求授权…");
+        new Thread(() -> {
+            java.net.ServerSocket server = null;
+            try {
+                server = new java.net.ServerSocket(0, 1, java.net.InetAddress.getByName("127.0.0.1"));
+                server.setSoTimeout(300000);
+                String redirectUri = "http://127.0.0.1:" + server.getLocalPort() + "/oauth/callback";
+                String verifier = randomB64Url(32);
+                String challenge = sha256B64Url(verifier);
+                String state = randomB64Url(32);
 
-    private class AccountLoginBridge {
-        @JavascriptInterface
-        public void onKey(String key) {
-            if (key == null || !key.startsWith("sk-")) {
-                return;
-            }
-            SharedPreferences prefs = getSharedPreferences("account", MODE_PRIVATE);
-            prefs.edit().putString("key", key).apply();
-            mainHandler.post(() -> {
-                notifyAccountChanged("key");
-                if (accountLoginDialog != null) {
-                    accountLoginDialog.dismiss();
+                JSONObject initBody = new JSONObject()
+                        .put("code_challenge", challenge)
+                        .put("code_challenge_method", "S256")
+                        .put("state", state)
+                        .put("redirect_uri", redirectUri)
+                        .put("locale", "zh_CN")
+                        .put("login_source", "web");
+                ttsLog("auth_init sending");
+                JSONObject initBiz = postPlatform("/auth-api/v0/dsh/auth_init", initBody, null);
+                ttsLog("auth_init ok " + initBiz.optString("authorize_id"));
+                String authorizeUrl = initBiz.getString("authorize_url");
+                ttsLog("authorize url host=" + android.net.Uri.parse(authorizeUrl).getHost());
+                openBrowser(authorizeUrl);
+                notifyAccountStatus("等待浏览器授权…");
+
+                String code = null;
+                long deadline = System.currentTimeMillis() + 300000;
+                while (code == null && System.currentTimeMillis() < deadline) {
+                    java.net.Socket socket = server.accept();
+                    try {
+                        java.io.BufferedReader reader = new java.io.BufferedReader(
+                                new java.io.InputStreamReader(socket.getInputStream(), "UTF-8"));
+                        String requestLine = reader.readLine();
+                        String receivedState = "";
+                        String receivedCode = null;
+                        if (requestLine != null && requestLine.startsWith("GET ")) {
+                            String target = requestLine.split(" ")[1];
+                            java.net.URI uri = java.net.URI.create("http://127.0.0.1" + target);
+                            String query = uri.getRawQuery();
+                            if (query != null) {
+                                for (String pair : query.split("&")) {
+                                    int eq = pair.indexOf('=');
+                                    if (eq < 0) {
+                                        continue;
+                                    }
+                                    String key = java.net.URLDecoder.decode(pair.substring(0, eq), "UTF-8");
+                                    String value = java.net.URLDecoder.decode(pair.substring(eq + 1), "UTF-8");
+                                    if ("code".equals(key)) {
+                                        receivedCode = value;
+                                    } else if ("state".equals(key)) {
+                                        receivedState = value;
+                                    }
+                                }
+                            }
+                        }
+                        String html = "<html><body style='font-family:sans-serif;padding:40px;text-align:center'>"
+                                + "<h2>授权完成</h2><p>请回到 DeepLook 测试版。</p></body></html>";
+                        String response = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n"
+                                + "Content-Length: " + html.getBytes(java.nio.charset.StandardCharsets.UTF_8).length
+                                + "\r\nConnection: close\r\n\r\n" + html;
+                        socket.getOutputStream().write(response.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                        socket.getOutputStream().flush();
+                        if (receivedCode != null && state.equals(receivedState)) {
+                            code = receivedCode;
+                        }
+                    } finally {
+                        try {
+                            socket.close();
+                        } catch (Exception ignored) {
+                        }
+                    }
                 }
-            });
-        }
-
-        @JavascriptInterface
-        public void onProfile(String name, String avatar) {
-            SharedPreferences prefs = getSharedPreferences("account", MODE_PRIVATE);
-            SharedPreferences.Editor editor = prefs.edit();
-            if (name != null && !name.isEmpty()) {
-                editor.putString("name", name);
-            }
-            if (avatar != null && !avatar.isEmpty()) {
-                editor.putString("avatar", avatar);
-            }
-            editor.apply();
-            mainHandler.post(() -> notifyAccountChanged("profile"));
-        }
-
-        @JavascriptInterface
-        public void onStatus(String text) {
-            mainHandler.post(() -> {
-                if (accountLoginStatus != null && text != null) {
-                    accountLoginStatus.setText(text);
+                if (code == null) {
+                    throw new IllegalStateException("授权超时");
                 }
-            });
-        }
+                notifyAccountStatus("正在换取令牌…");
+                JSONObject exchangeBody = new JSONObject()
+                        .put("code", code)
+                        .put("code_verifier", verifier)
+                        .put("redirect_uri", redirectUri)
+                        .put("device_id", deviceId())
+                        .put("device_model", Build.MANUFACTURER + "-" + Build.MODEL)
+                        .put("os_version", "Android " + Build.VERSION.RELEASE);
+                JSONObject exchangeBiz = postPlatform("/auth-api/v0/dsh/auth_exchange", exchangeBody, null);
+                String token = exchangeBiz.getString("token");
+                ttsLog("auth_exchange ok len=" + token.length());
+
+                SharedPreferences prefs = getSharedPreferences("account", MODE_PRIVATE);
+                prefs.edit().putString("token", token)
+                        .putString("issuer", PLATFORM_ORIGIN).apply();
+
+                // 读取账号资料（昵称/头像）
+                try {
+                    JSONObject current = getPlatform("/auth-api/v0/users/current", token);
+                    JSONObject identity = current.optJSONObject("id_profile");
+                    if (identity != null) {
+                        String name = identity.isNull("name") ? "" : identity.optString("name", "");
+                        String picture = identity.optString("picture", "");
+                        prefs.edit().putString("name", name).putString("avatar", picture).apply();
+                    }
+                    String contact = current.optString("mobile", "");
+                    if (contact.isEmpty()) {
+                        contact = current.optString("email", "");
+                    }
+                    prefs.edit().putString("contact", contact).apply();
+                } catch (Exception ignored) {
+                    // 资料读取失败不影响登录
+                }
+
+                notifyAccountStatus("登录成功");
+                notifyAccountChanged("login");
+            } catch (Exception error) {
+                ttsLog("oauth failed " + error);
+                notifyAccountStatus("登录失败：" + error.getMessage());
+            } finally {
+                oauthRunning = false;
+                if (server != null) {
+                    try {
+                        server.close();
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        }, "ds-oauth").start();
     }
 
-    private volatile TextView accountLoginStatus;
+    private String randomB64Url(int bytes) {
+        byte[] buffer = new byte[bytes];
+        new java.security.SecureRandom().nextBytes(buffer);
+        return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(buffer);
+    }
 
-    /** 打开 DeepSeek 官方登录页（内嵌 WebView，不保存账号密码） */
-    void openDeepSeekLogin() {
+    private String sha256B64Url(String value) throws Exception {
+        java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+        return java.util.Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(digest.digest(value.getBytes(java.nio.charset.StandardCharsets.US_ASCII)));
+    }
+
+    private String deviceId() {
+        SharedPreferences prefs = getSharedPreferences("account", MODE_PRIVATE);
+        String id = prefs.getString("device_id", "");
+        if (id == null || id.isEmpty()) {
+            id = java.util.UUID.randomUUID().toString();
+            prefs.edit().putString("device_id", id).apply();
+        }
+        return id;
+    }
+
+    private void openBrowser(String url) {
         mainHandler.post(() -> {
-            if (accountLoginDialog != null && accountLoginDialog.isShowing()) {
-                return;
+            try {
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+            } catch (Exception error) {
+                ttsLog("open browser failed " + error);
             }
-            WebView loginView = new WebView(this);
-            WebSettings webSettings = loginView.getSettings();
-            webSettings.setJavaScriptEnabled(true);
-            webSettings.setDomStorageEnabled(true);
-            webSettings.setJavaScriptCanOpenWindowsAutomatically(true);
-            webSettings.setSupportMultipleWindows(false);
-            loginView.setWebViewClient(new WebViewClient() {
-                @Override
-                public void onPageFinished(WebView view, String url) {
-                    view.evaluateJavascript(LOGIN_SCANNER_JS, null);
-                }
-            });
-            loginView.addJavascriptInterface(new AccountLoginBridge(), "DSLogin");
-            loginView.loadUrl("https://platform.deepseek.com/api_keys");
-
-            Dialog dialog = new Dialog(this, android.R.style.Theme_Material_Light_NoActionBar);
-            LinearLayout layout = new LinearLayout(this);
-            layout.setOrientation(LinearLayout.VERTICAL);
-            layout.setBackgroundColor(0xFFFFFFFF);
-            int statusBarHeight = 0;
-            int resId = getResources().getIdentifier("status_bar_height", "dimen", "android");
-            if (resId > 0) {
-                statusBarHeight = getResources().getDimensionPixelSize(resId);
-            }
-            layout.setPadding(0, statusBarHeight, 0, 0);
-
-            LinearLayout bar = new LinearLayout(this);
-            bar.setOrientation(LinearLayout.HORIZONTAL);
-            bar.setGravity(Gravity.CENTER_VERTICAL);
-            bar.setPadding(dp(16), dp(10), dp(8), dp(10));
-            TextView statusView = new TextView(this);
-            statusView.setText("等待登录…");
-            statusView.setTextColor(0xFF5B6B85);
-            statusView.setTextSize(13);
-            LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
-                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-            bar.addView(statusView, statusParams);
-            Button close = new Button(this);
-            close.setText("关闭");
-            close.setTextColor(0xFF1D2430);
-            bar.addView(close, new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-            close.setOnClickListener(v -> dialog.dismiss());
-            layout.addView(bar, new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-            layout.addView(loginView, new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
-
-            accountLoginStatus = statusView;
-            dialog.setContentView(layout);
-            dialog.setOnDismissListener(d -> {
-                accountLoginDialog = null;
-                accountLoginStatus = null;
-            });
-            accountLoginDialog = dialog;
-            dialog.show();
         });
     }
 
-    private int dp(int value) {
-        return Math.round(value * getResources().getDisplayMetrics().density);
+    private java.util.Map<String, String> platformHeaders(String token) {
+        java.util.HashMap<String, String> headers = new java.util.HashMap<>();
+        headers.put("content-type", "application/json");
+        headers.put("x-client-bundle-id", "");
+        headers.put("x-client-platform", "web");
+        headers.put("x-client-version", PLATFORM_CLIENT_VERSION);
+        headers.put("x-client-locale", "zh_CN");
+        headers.put("x-client-timezone-offset",
+                String.valueOf(java.util.TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 1000));
+        if (token != null) {
+            headers.put("x-dsh-auth-token", token);
+        }
+        return headers;
+    }
+
+    /** 平台接口统一返回 {code:0, data:{biz_code:0, biz_data:...}}，这里取出 biz_data */
+    private JSONObject performPlatform(String method, String path, String body, String token) throws Exception {
+        java.net.HttpURLConnection connection = (java.net.HttpURLConnection)
+                new java.net.URL(PLATFORM_ORIGIN + path).openConnection();
+        try {
+            connection.setRequestMethod(method);
+            connection.setConnectTimeout(20000);
+            connection.setReadTimeout(30000);
+            connection.setInstanceFollowRedirects(false);
+            for (java.util.Map.Entry<String, String> entry : platformHeaders(token).entrySet()) {
+                connection.setRequestProperty(entry.getKey(), entry.getValue());
+            }
+            if (body != null) {
+                connection.setDoOutput(true);
+                byte[] bytes = body.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                connection.setFixedLengthStreamingMode(bytes.length);
+                try (java.io.OutputStream out = connection.getOutputStream()) {
+                    out.write(bytes);
+                }
+            }
+            int status = connection.getResponseCode();
+            java.io.InputStream stream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
+            String text = readAll(stream);
+            if (status == 401) {
+                throw new IllegalStateException("token expired");
+            }
+            if (status < 200 || status >= 300) {
+                throw new IllegalStateException("HTTP " + status + " " + text);
+            }
+            JSONObject payload = new JSONObject(text);
+            JSONObject data = payload.optJSONObject("data");
+            if (data == null) {
+                throw new IllegalStateException("bad payload");
+            }
+            int bizCode = data.optInt("biz_code", 0);
+            if (bizCode != 0) {
+                throw new IllegalStateException("biz_code " + bizCode);
+            }
+            return data.optJSONObject("biz_data") != null ? data.getJSONObject("biz_data") : new JSONObject();
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    private String readAll(java.io.InputStream stream) throws Exception {
+        if (stream == null) {
+            return "";
+        }
+        java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+        byte[] chunk = new byte[8192];
+        int count;
+        while ((count = stream.read(chunk)) > 0) {
+            buffer.write(chunk, 0, count);
+        }
+        stream.close();
+        return buffer.toString("UTF-8");
+    }
+
+    private JSONObject postPlatform(String path, JSONObject body, String token) throws Exception {
+        return performPlatform("POST", path, body.toString(), token);
+    }
+
+    private JSONObject getPlatform(String path, String token) throws Exception {
+        return performPlatform("GET", path, null, token);
+    }
+
+    private void notifyAccountStatus(String text) {
+        if (webView == null) {
+            return;
+        }
+        final String payload = JSONObject.quote(text == null ? "" : text);
+        mainHandler.post(() -> {
+            if (webView != null) {
+                webView.evaluateJavascript(
+                        "window.__deeplookAccount && window.__deeplookAccount.onStatus && "
+                                + "window.__deeplookAccount.onStatus(" + payload + ")", null);
+            }
+        });
     }
 
     /** 读取已保存的登录态（JSON） */
     String getAccountJson() {
         SharedPreferences prefs = getSharedPreferences("account", MODE_PRIVATE);
-        String key = prefs.getString("key", "");
-        String name = prefs.getString("name", "");
-        String avatar = prefs.getString("avatar", "");
-        return "{\"key\":\"" + escapeJson(key) + "\",\"name\":\"" + escapeJson(name)
-                + "\",\"avatar\":\"" + escapeJson(avatar) + "\"}";
+        JSONObject json = new JSONObject();
+        try {
+            json.put("token", prefs.getString("token", ""));
+            json.put("name", prefs.getString("name", ""));
+            json.put("avatar", prefs.getString("avatar", ""));
+            json.put("contact", prefs.getString("contact", ""));
+        } catch (Exception ignored) {
+        }
+        return json.toString();
     }
 
-    private static String escapeJson(String value) {
-        if (value == null) {
-            return "";
-        }
-        return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    /** 查询账号余额（充值余额 + 赠金） */
+    void refreshAccountSummary() {
+        new Thread(() -> {
+            String token = getSharedPreferences("account", MODE_PRIVATE).getString("token", "");
+            if (token == null || token.isEmpty()) {
+                return;
+            }
+            try {
+                JSONObject summary = getPlatform("/api/v0/users/get_user_summary", token);
+                JSONObject result = new JSONObject();
+                double balance = 0;
+                double bonus = 0;
+                String currency = "CNY";
+                org.json.JSONArray normal = summary.optJSONArray("normal_wallets");
+                if (normal != null) {
+                    for (int i = 0; i < normal.length(); i++) {
+                        JSONObject wallet = normal.getJSONObject(i);
+                        balance += wallet.optDouble("balance", 0);
+                        currency = wallet.optString("currency", currency);
+                    }
+                }
+                org.json.JSONArray bonusWallets = summary.optJSONArray("bonus_wallets");
+                if (bonusWallets != null) {
+                    for (int i = 0; i < bonusWallets.length(); i++) {
+                        bonus += bonusWallets.getJSONObject(i).optDouble("balance", 0);
+                    }
+                }
+                result.put("balance", balance);
+                result.put("bonus", bonus);
+                result.put("currency", currency);
+                final String payload = JSONObject.quote(result.toString());
+                mainHandler.post(() -> {
+                    if (webView != null) {
+                        webView.evaluateJavascript(
+                                "window.__deeplookAccount && window.__deeplookAccount.onBalance && "
+                                        + "window.__deeplookAccount.onBalance(JSON.parse(" + payload + "))", null);
+                    }
+                });
+            } catch (Exception error) {
+                ttsLog("summary failed " + error);
+            }
+        }, "ds-summary").start();
     }
 
     void logoutAccount() {
-        getSharedPreferences("account", MODE_PRIVATE).edit().clear().apply();
+        String token = getSharedPreferences("account", MODE_PRIVATE).getString("token", "");
+        getSharedPreferences("account", MODE_PRIVATE).edit()
+                .remove("token").remove("name").remove("avatar").remove("contact").apply();
         notifyAccountChanged("logout");
+        if (token != null && !token.isEmpty()) {
+            new Thread(() -> {
+                try {
+                    performPlatform("POST", "/auth-api/v0/users/logout", "{}", token);
+                } catch (Exception ignored) {
+                    // 本地已退出，远端注销失败不影响
+                }
+            }, "ds-logout").start();
+        }
     }
 
     private void notifyAccountChanged(String reason) {
         if (webView == null) {
             return;
         }
-        String account = getAccountJson();
-        String js;
+        final String js;
         if ("logout".equals(reason)) {
             js = "window.__deeplookAccount && window.__deeplookAccount.onLogout && "
                     + "window.__deeplookAccount.onLogout()";
         } else {
+            String account = getAccountJson();
             js = "if(window.__deeplookAccount){var a=" + account + ";"
-                    + "if(a.key){window.__deeplookAccount.onKey(a.key);}"
-                    + "window.__deeplookAccount.onProfile(a.name,a.avatar);}";
+                    + "window.__deeplookAccount.onAccount && window.__deeplookAccount.onAccount(a);}";
         }
-        webView.evaluateJavascript(js, null);
+        mainHandler.post(() -> {
+            if (webView != null) {
+                webView.evaluateJavascript(js, null);
+            }
+        });
     }
 
     /** 从下载链接导入：原生下载到 cache，再分片回传给页面做导入 */

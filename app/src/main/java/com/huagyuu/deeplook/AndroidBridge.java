@@ -66,8 +66,13 @@ final class AndroidBridge {
     }
 
     @JavascriptInterface
-    public void openDeepSeekLogin() {
-        activity.openDeepSeekLogin();
+    public void startDeepSeekLogin() {
+        activity.startDeepSeekOAuth();
+    }
+
+    @JavascriptInterface
+    public void refreshAccountSummary() {
+        activity.refreshAccountSummary();
     }
 
     @JavascriptInterface
