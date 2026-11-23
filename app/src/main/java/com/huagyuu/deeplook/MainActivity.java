@@ -379,10 +379,8 @@ public class MainActivity extends AppCompatActivity {
     /** 创建并配置 WebView；software=true 时用软件渲染（部分机型硬件渲染会黑屏） */
     private WebView createAndConfigureWebView(boolean software) {
         WebView view = new WebView(this);
-        // 关掉网页里的触感反馈：按住说话/长按按钮时不要震动
+        // 只关掉触感反馈（按住说话不震动），长按仍然保留给输入框做全选/复制/粘贴
         view.setHapticFeedbackEnabled(false);
-        view.setLongClickable(false);
-        view.setOnLongClickListener(v -> true);
         view.setLayoutParams(new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         view.setBackgroundColor(ContextCompat.getColor(this, R.color.chat_background));

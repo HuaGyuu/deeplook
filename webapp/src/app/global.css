@@ -17,6 +17,14 @@ body,
   }
 }
 
+/* 任何输入框都允许长按选择/复制/粘贴，不受父容器 user-select 影响 */
+input,
+textarea,
+[contenteditable='true'] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 body {
   overflow: hidden;
   margin: 0;

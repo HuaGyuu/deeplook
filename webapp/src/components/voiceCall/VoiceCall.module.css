@@ -446,3 +446,148 @@
   border-bottom-left-radius: 6px;
   box-shadow: 0 2px 8px rgba(90, 120, 180, 0.12);
 }
+
+
+/* ---------------- 深色模式 ---------------- */
+:global(body.dark) .overlay {
+  background: linear-gradient(135deg, #1b2231 0%, #171d2a 34%, #131926 68%, #0d111a 100%);
+  color: #e8eef8;
+}
+
+:global(body.dark) .glowA {
+  background: rgba(96, 140, 214, 0.28);
+}
+
+:global(body.dark) .glowB {
+  background: rgba(64, 104, 168, 0.3);
+}
+
+:global(body.dark) .avatar {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  color: #cfe0f5;
+}
+
+:global(body.dark) .name {
+  color: #eef3fb;
+}
+
+:global(body.dark) .sub,
+:global(body.dark) .status,
+:global(body.dark) .hint,
+:global(body.dark) .roundLabel {
+  color: #8d9ab0;
+}
+
+:global(body.dark) .transcriptBtn {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #d5e2f4;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+:global(body.dark) .transcriptBtnActive {
+  background: #3d5d8c;
+  border-color: transparent;
+  color: #f2f7ff;
+}
+
+:global(body.dark) .orb {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+
+:global(body.dark) .orbInner {
+  background: rgba(24, 30, 42, 0.86);
+  box-shadow: inset 0 0 30px rgba(80, 120, 190, 0.18);
+}
+
+:global(body.dark) .orbSpeaking .orbInner {
+  background: rgba(30, 38, 52, 0.92);
+}
+
+:global(body.dark) .timer {
+  color: #f0f5fd;
+}
+
+:global(body.dark) .talkBtn {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #dbe6f5;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+
+:global(body.dark) .talkBtnActive {
+  background: #3f5f8e;
+  border-color: rgba(140, 175, 225, 0.4);
+  color: #eef4fc;
+}
+
+:global(body.dark) .roundBtn {
+  color: #c2d0e2;
+}
+
+:global(body.dark) .roundBtn::before {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+}
+
+:global(body.dark) .hangBtn {
+  color: #ffb3ad;
+}
+
+:global(body.dark) .hangBtn::before {
+  border-color: transparent;
+  background: linear-gradient(180deg, #ff6c60, #e8493d);
+  box-shadow: 0 10px 24px rgba(232, 73, 61, 0.35);
+}
+
+:global(body.dark) .hangBtn svg {
+  color: #fff;
+}
+
+:global(body.dark) .hangBtn .roundLabel {
+  color: #ffb3ad;
+}
+
+:global(body.dark) .roundBtnActive {
+  color: #ff9c93;
+}
+
+:global(body.dark) .roundBtnActive::before {
+  background: rgba(255, 120, 110, 0.16);
+  border-color: rgba(255, 140, 130, 0.3);
+}
+
+:global(body.dark) .transcript {
+  background: rgba(26, 32, 44, 0.97);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
+}
+
+:global(body.dark) .transcriptHeader {
+  color: #d5e2f4;
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+:global(body.dark) .transcriptClose {
+  background: rgba(255, 255, 255, 0.08);
+  color: #c2d0e2;
+}
+
+:global(body.dark) .transcriptEmpty {
+  color: #8d9ab0;
+}
+
+:global(body.dark) .bubbleUser {
+  background: #2f4a72;
+  color: #e8f0fb;
+}
+
+:global(body.dark) .bubbleAi {
+  background: #232a36;
+  color: #dbe3ee;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
